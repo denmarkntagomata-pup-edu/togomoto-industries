@@ -1,0 +1,284 @@
+---
+// Item detail view (spec §5.3, PLAN P1-4). SSR. 404 when the category slug is
+// unknown, the listing slug is unknown/unpublished, OR the stored category does
+// not match the URL category. Description is rendered as escaped text with line
+// breaks preserved (AGENTS.md §4) — never raw HTML.
+export const prerender = false;
+
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import ImageCarousel from '../../../components/ImageCarousel.astro';
+import SpecBlocks from '../../../components/SpecBlocks.astro';
+import ConnectSection from '../../../components/ConnectSection.astro';
+import ListingCard from '../../../components/ListingCard.astro';
+import { CATEGORY_BY_SLUG, SLUG_BY_CATEGORY, type CategorySlug } from '../../../db/enums';
+import { formatPrice, labelForEnum, snippet } from '../../../lib/format';
+import { imageUrl } from '../../../lib/images';
+import { vehicleLd } from '../../../lib/jsonld';
+import { setPublicCache } from '../../../lib/cache';
+import {
+  getListingImages,
+  getPublishedListingBySlug,
+  getRelatedListings,
+} from '../../../lib/listings';
+
+const categorySlug = Astro.params.category as string;
+const category = CATEGORY_BY_SLUG[categorySlug as CategorySlug];
+if (!category) return Astro.rewrite('/404');
+
+const slug = Astro.params.slug as string;
+const env = Astro.locals.runtime.env;
+const listing = await getPublishedListingBySlug(env, slug);
+// Unknown/unpublished slug, or category mismatch → 404 (spec §5.3, AGENTS.md §7).
+if (!listing || listing.category !== category) return Astro.rewrite('/404');
+setPublicCache(Astro.response); // anonymous, identical for all visitors (P3-3)
+
+const [images, related] = await Promise.all([
+  getListingImages(env, listing.id),
+  getRelatedListings(env, category, listing.id, 4),
+]);
+
+const CATEGORY_TITLE: Record<string, string> = {
+  used_car: 'Used cars',
+  used_truck: 'Used trucks',
+  used_heavy_equipment: 'Used heavy equipment',
+};
+const categoryTitle = CATEGORY_TITLE[category];
+const categoryHref = `/products/${SLUG_BY_CATEGORY[category]}`;
+
+const price = formatPrice(listing.price, listing.priceOnApplication);
+const unitType = (listing.body ?? '').trim() || 'unit';
+const makerModel = [listing.maker, listing.model].filter(Boolean).join(' ');
+
+const STATUS_CLASS: Record<string, string> = {
+  available: 'badge--success',
+  reserved: 'badge--warning',
+  sold: 'badge--danger',
+  incoming: 'badge--info',
+};
+const statusClass = STATUS_CLASS[listing.status] ?? 'badge--muted';
+
+const heroFacts = [
+  listing.yearOfManufacture ? String(listing.yearOfManufacture) : null,
+  listing.mileage != null ? `${listing.mileage.toLocaleString('en-US')} km` : null,
+  listing.location,
+].filter(Boolean) as string[];
+
+const metaDescription = listing.description
+  ? snippet(listing.description, 155)
+  : `${listing.title} for sale at Togomoto Industries. ${price}.`;
+const ogImage = images[0]
+  ? new URL(imageUrl(images[0].r2Key, 'carousel'), Astro.site ?? Astro.url).href
+  : undefined;
+
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url).href;
+const vehicleJsonLd = vehicleLd({
+  url: canonicalUrl,
+  name: listing.title,
+  description: listing.description,
+  maker: listing.maker,
+  model: listing.model,
+  year: listing.yearOfManufacture,
+  mileageKm: listing.mileage,
+  image: ogImage,
+  price: listing.price,
+  poa: listing.priceOnApplication,
+  status: listing.status,
+});
+---
+
+<BaseLayout title={listing.title} description={metaDescription} ogImage={ogImage}>
+  <script type="application/ld+json" slot="head" is:inline set:html={JSON.stringify(vehicleJsonLd)} />
+  <div class="container detail">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">/</span>
+      <span>Products</span> <span aria-hidden="true">/</span>
+      <a href={categoryHref}>{categoryTitle}</a> <span aria-hidden="true">/</span>
+      <span class="current">{listing.title}</span>
+    </nav>
+
+    <section class="hero">
+      <div class="hero-media">
+        <ImageCarousel images={images} title={listing.title} />
+      </div>
+
+      <div class="hero-info">
+        <span class={`badge ${statusClass}`}>{labelForEnum(listing.status)}</span>
+        <h1>{listing.title}</h1>
+        {makerModel && <p class="maker">{makerModel}</p>}
+        <p class="price">{price}</p>
+        {heroFacts.length > 0 && <p class="facts">{heroFacts.join(' · ')}</p>}
+        <div class="cta">
+          <a class="btn" href="#inquire">Inquire about this {unitType}</a>
+        </div>
+      </div>
+    </section>
+
+    <SpecBlocks listing={listing} />
+
+    {
+      listing.description && listing.description.trim() !== '' && (
+        <section class="description">
+          <h2>Description</h2>
+          <p class="desc-text">{listing.description}</p>
+        </section>
+      )
+    }
+
+  </div>
+
+  <ConnectSection
+    variant="accent"
+    id="inquire"
+    source="product_detail"
+    listingId={listing.id}
+    submitLabel="Submit inquiry"
+    heading="Inquire about this"
+    accent={unitType}
+    lede="Get in touch with the Togomoto team by filling up the form. We will contact you shortly."
+  />
+
+  {
+    related.length > 0 && (
+      <div class="container detail-related">
+        <section class="related">
+          <h2>Related products — {categoryTitle}</h2>
+          <div class="related-grid">
+            {related.map((r) => (
+              <ListingCard listing={r.listing} image={r.image} />
+            ))}
+          </div>
+        </section>
+      </div>
+    )
+  }
+</BaseLayout>
+
+<style>
+  .detail {
+    padding-block: var(--space-5) var(--space-7);
+  }
+  .crumbs {
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    margin-bottom: var(--space-5);
+  }
+  .crumbs a {
+    color: var(--color-muted);
+  }
+  .crumbs a:hover {
+    color: var(--color-primary);
+  }
+  .crumbs .current {
+    color: var(--color-text);
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: var(--space-6);
+    align-items: start;
+    margin-bottom: var(--space-7);
+  }
+  .hero-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .hero-info h1 {
+    margin: 0;
+  }
+  .hero-info .maker {
+    margin: 0;
+    color: var(--color-muted);
+  }
+  .hero-info .price {
+    margin: var(--space-2) 0 0;
+    color: var(--color-primary);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--text-2xl);
+  }
+  .hero-info .facts {
+    margin: 0;
+    color: var(--color-muted);
+  }
+  .cta {
+    margin-top: var(--space-3);
+  }
+  .btn {
+    display: inline-block;
+    padding: var(--space-3) var(--space-6);
+    background: var(--color-primary);
+    color: var(--color-primary-ink);
+    border-radius: var(--radius-md);
+    font-weight: 700;
+  }
+  .btn:hover {
+    text-decoration: none;
+    filter: brightness(1.05);
+  }
+
+  .badge {
+    align-self: flex-start;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 1;
+    padding: 0.4em 0.7em;
+    border-radius: var(--radius-pill);
+  }
+  .badge--success {
+    background: var(--color-success);
+    color: var(--color-success-ink);
+  }
+  .badge--warning {
+    background: var(--color-warning);
+    color: var(--color-warning-ink);
+  }
+  .badge--danger {
+    background: var(--color-danger-fill);
+    color: #fff;
+  }
+  .badge--info {
+    background: var(--color-secondary);
+    color: #fff;
+  }
+  .badge--muted {
+    background: var(--color-surface-2);
+    color: var(--color-muted);
+  }
+
+  .description {
+    margin-top: var(--space-7);
+  }
+  .desc-text {
+    white-space: pre-line;
+    color: var(--color-text);
+    max-width: 70ch;
+  }
+
+  .detail-related {
+    padding-bottom: var(--space-7);
+  }
+  .related {
+    margin-top: var(--space-6);
+  }
+  .related-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-5);
+  }
+
+  @media (max-width: 900px) {
+    .hero {
+      grid-template-columns: 1fr;
+    }
+    .related-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 560px) {
+    .related-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

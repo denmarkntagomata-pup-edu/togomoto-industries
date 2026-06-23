@@ -1,0 +1,122 @@
+---
+// Shared "Connect and talk to us" CTA block (spec §6.4). One component so the
+// standard contact CTA is genuinely identical site-wide (home, contact,
+// auction-request, vehicle-shipping). The product-detail item inquiry reuses it
+// with variant="accent" (blue) and an accented unit type in the heading.
+//
+// Left rail: heading (+ optional accent word), lede, social links and the shared
+// AddressBlock. Right: the shared InquiryForm in the matching colour variant.
+import type { InquirySource } from '../db/enums';
+import InquiryForm from './InquiryForm.astro';
+import AddressBlock from './AddressBlock.astro';
+import SocialLinks from './SocialLinks.astro';
+
+interface Props {
+  heading: string;
+  /** Optional emphasised word rendered after the heading (e.g. the unit type). */
+  accent?: string;
+  lede: string;
+  source: InquirySource;
+  listingId?: number | null;
+  submitLabel?: string;
+  variant?: 'default' | 'accent';
+  /** Anchor id; defaults to "connect" so existing #connect links keep working. */
+  id?: string;
+}
+
+const {
+  heading,
+  accent,
+  lede,
+  source,
+  listingId = null,
+  submitLabel,
+  variant = 'default',
+  id = 'connect',
+} = Astro.props;
+---
+
+<section class={`connect connect--${variant}`} id={id} aria-label={heading}>
+  <div class="container">
+    <div class="connect-card">
+      <div class="connect-rail">
+        <h2 class="connect-title">
+          {heading}{accent && <span class="connect-accent"> {accent}</span>}
+        </h2>
+        <p class="connect-lede">{lede}</p>
+
+        <div class="connect-meta">
+          <SocialLinks />
+          <AddressBlock heading={null} />
+        </div>
+      </div>
+
+      <div class="connect-form">
+        <InquiryForm
+          source={source}
+          listingId={listingId}
+          submitLabel={submitLabel}
+          variant={variant}
+        />
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .connect {
+    padding-block: var(--space-7);
+    scroll-margin-top: var(--nav-h);
+  }
+  .connect-card {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    gap: var(--space-7);
+    padding: clamp(var(--space-5), 4vw, var(--space-8));
+    background: var(--color-surface);
+    border: 2px solid var(--color-primary);
+    border-radius: var(--radius-lg);
+  }
+  /* Item-inquiry variant: blue accent instead of amber. */
+  .connect--accent .connect-card {
+    border-color: var(--color-secondary);
+  }
+
+  .connect-title {
+    font-size: clamp(1.75rem, 4vw, var(--text-3xl));
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    margin: 0 0 var(--space-4);
+  }
+  .connect-accent {
+    color: var(--color-primary);
+  }
+  .connect--accent .connect-accent {
+    color: var(--color-link); /* readable blue on the dark surface (AA) */
+  }
+  .connect-lede {
+    color: var(--color-muted);
+    max-width: 46ch;
+    margin: 0 0 var(--space-6);
+  }
+  /* Divider under the lede, echoing the mockup's underline. */
+  .connect-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-5);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--color-border);
+  }
+
+  @media (max-width: 900px) {
+    .connect-card {
+      grid-template-columns: 1fr;
+      gap: var(--space-6);
+    }
+  }
+  @media (max-width: 480px) {
+    .connect-meta {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,493 @@
+---
+// Home page (spec §5.1, PLAN P2-1). SSR — the recent-arrivals rows are queried
+// live. Sections in order: hero, recent-arrivals (cars then trucks; heavy
+// equipment excluded per AGENTS §7), "get to know more" band, quote banner,
+// services grid (6), "why Togomoto" band, and the shared ConnectSection (home
+// inquiry form + social/address rail). Reuses ListingCard (via RecentArrivals)
+// and ConnectSection (which wraps InquiryForm + AddressBlock + SocialLinks).
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import RecentArrivals from '../components/RecentArrivals.astro';
+import ConnectSection from '../components/ConnectSection.astro';
+import { getRecentArrivals } from '../lib/listings';
+import { organizationLd } from '../lib/jsonld';
+import { setPublicCache } from '../lib/cache';
+
+const env = Astro.locals.runtime.env;
+setPublicCache(Astro.response); // anonymous, identical for all visitors (P3-3)
+const orgJsonLd = organizationLd((Astro.site ?? new URL(Astro.url.origin)).origin);
+const [cars, trucks] = await Promise.all([
+  getRecentArrivals(env, 'used_car', 10),
+  getRecentArrivals(env, 'used_truck', 10),
+]);
+
+// Our Services grid (spec §5.1e) — exact six entries + hrefs. `icon` is inline
+// SVG inner markup (stroke-based; trusted constant) rendered inside a 24×24 box.
+const services = [
+  {
+    label: 'Used cars',
+    desc: 'Inspected, ready-to-drive sedans, SUVs and vans.',
+    href: '/products/used-cars',
+    icon: '<path d="M5 11l1.6-4a2 2 0 0 1 1.9-1.3h7a2 2 0 0 1 1.9 1.3L19 11"/><path d="M4 16v-3a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a1 1 0 0 1-1 1h-1.2"/><path d="M8 17H6"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/>',
+  },
+  {
+    label: 'Used trucks',
+    desc: 'Dump trucks, wing vans, tractor heads and more.',
+    href: '/products/used-trucks',
+    icon: '<path d="M10 17h4V5H2v12h2"/><path d="M20 17h2v-3.3a4 4 0 0 0-1.2-2.85L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+  },
+  {
+    label: 'Used heavy equipment',
+    desc: 'Excavators, loaders, cranes and construction units.',
+    href: '/products/used-heavy-equipment',
+    icon: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  },
+  {
+    label: 'Auction request',
+    desc: 'Source a specific unit straight from Japan auctions.',
+    href: '/services/auction-request',
+    icon: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  },
+  {
+    label: 'Vehicle shipping',
+    desc: 'Point-to-point shipping, clearance and registration.',
+    href: '/services/vehicle-shipping',
+    icon: '<circle cx="12" cy="5" r="2.5"/><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/>',
+  },
+  {
+    label: 'Spare parts',
+    desc: 'Genuine and surplus parts for your fleet.',
+    href: '/spare-parts',
+    icon: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
+  },
+];
+
+// "Why Togomoto" benefit bullets (spec §5.1) — paired into a two-column list.
+const reasons = [
+  'Distributor of industry-leading brands',
+  'Unparalleled after-sales service',
+  'Genuine parts replacement service',
+  'Ensure uptime, productivity and function',
+  'Reduce operating costs in the long run',
+  'Highly skilled professionals',
+];
+---
+
+<BaseLayout
+  title="Togomoto Industries"
+  description="Direct importer of Japan-surplus used cars, trucks and heavy equipment in the Philippines — auction sourcing, vehicle shipping and spare parts. Browse our latest arrivals."
+>
+  <script type="application/ld+json" slot="head" is:inline set:html={JSON.stringify(orgJsonLd)} />
+
+  {/* (a) Hero — photo-backed full-bleed. */}
+  <section class="hero">
+    <div class="container hero-inner">
+      <p class="eyebrow">Japan surplus imports · Trusted since day one</p>
+      <h1>“Your trusted partner — we deliver, we make it happen.”</h1>
+      <p class="lede">
+        Togomoto Industries sources, ships and delivers inspected units
+        from Japan to the Philippines. Browse our latest arrivals or tell us exactly
+        what you're looking for.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn--primary" href="/products/used-trucks">Browse inventory</a>
+        <a class="btn btn--ghost" href="#connect">Talk to us</a>
+      </div>
+      <p class="hero-attrib">
+        <strong>Jordan Cruz</strong><span>Managing Director</span>
+      </p>
+    </div>
+  </section>
+
+  {/* (b) Recent arrivals — Used cars */}
+  <RecentArrivals title="Recent arrivals — Used cars" rows={cars} href="/products/used-cars" eager />
+
+  {/* (c) Recent arrivals — Used trucks (heavy equipment intentionally excluded) */}
+  <RecentArrivals title="Recent arrivals — Used trucks" rows={trucks} href="/products/used-trucks" />
+
+  {/* (d) "Get to know more" band */}
+  <section class="band">
+    <div class="container band-inner">
+      <div>
+        <h2>Get to know Togomoto</h2>
+        <p>
+          We're a Japan-surplus dealership that manages the whole chain, from
+          sourcing and shipping to customs clearance and LTO registration. Learn
+          how we work and why fleet owners trust us.
+        </p>
+      </div>
+      <div class="band-cta">
+        <a class="btn btn--primary" href="/about">About us</a>
+        <a class="btn btn--ghost" href="/contact">Contact</a>
+      </div>
+    </div>
+  </section>
+
+  {/* (e) Quote banner */}
+  <section class="quote-banner" aria-label="What we offer">
+    <div class="container">
+      <p class="quote-mark" aria-hidden="true">“</p>
+      <p class="quote-text">
+        Togomoto is more than a distributor and supplier. We also provide genuine
+        part replacement, maintenance and full repair services for everything we sell.
+      </p>
+    </div>
+  </section>
+
+  {/* (f) Our services grid */}
+  <section class="services">
+    <div class="container">
+      <h2 class="section-title">Our services</h2>
+      <ul class="services-grid" role="list">
+        {
+          services.map((s) => (
+            <li>
+              <a class="service-card" href={s.href}>
+                <span class="service-icon" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="26"
+                    height="26"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    set:html={s.icon}
+                  />
+                </span>
+                <span class="service-name">{s.label}</span>
+                <span class="service-desc">{s.desc}</span>
+                <span class="service-cta">Inquire <span aria-hidden="true">→</span></span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  {/* (g) "Why Togomoto" bullets band */}
+  <section class="why">
+    <div class="container why-inner">
+      <div class="why-copy">
+        <h2 class="section-title">Why Togomoto</h2>
+        <p>
+          We don't just hand over the keys. From sourcing the right unit to keeping
+          it running, we stay with you for the long haul — so your fleet stays
+          productive and your costs stay predictable.
+        </p>
+        <ul class="why-list" role="list">
+          {reasons.map((r) => <li>{r}</li>)}
+        </ul>
+        <a class="btn btn--primary" href="/contact">Contact us</a>
+      </div>
+      <div class="why-visual">
+        <img
+          src="/placeholder.svg"
+          alt="The Togomoto Industries team at the yard"
+          width="2048"
+          height="1536"
+          loading="lazy"
+        />
+      </div>
+    </div>
+  </section>
+
+  {/* (h) Connect and talk to us */}
+  <ConnectSection
+    source="home"
+    submitLabel="Submit"
+    heading="Connect and talk to us!"
+    lede="Get in touch with the Togomoto team by filling up the form. We will contact you shortly."
+  />
+</BaseLayout>
+
+<style>
+  .btn {
+    display: inline-block;
+    padding: var(--space-3) var(--space-6);
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    font-size: var(--text-base);
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  .btn:hover {
+    text-decoration: none;
+  }
+  .btn--primary {
+    background: var(--color-primary);
+    color: var(--color-primary-ink);
+  }
+  .btn--primary:hover {
+    filter: brightness(1.05);
+  }
+  .btn--ghost {
+    color: var(--color-text);
+    border-color: var(--color-border);
+    background: rgba(0, 0, 0, 0.25);
+  }
+  .btn--ghost:hover {
+    border-color: var(--color-primary);
+  }
+
+  /* Shared section title with an amber underline accent. */
+  .section-title {
+    position: relative;
+    margin-bottom: var(--space-6);
+    padding-bottom: var(--space-3);
+  }
+  .section-title::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 64px;
+    height: 3px;
+    border-radius: var(--radius-pill);
+    background: var(--color-primary);
+  }
+
+  /* (a) Hero — full-bleed photo background + overlay (overlay also = fallback). */
+  .hero {
+    background:
+      var(--hero-overlay),
+      linear-gradient(135deg, #16263a, #0d141d) center / cover no-repeat,
+      var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .hero-inner {
+    padding-block: clamp(var(--space-7), 9vw, calc(var(--space-8) * 1.6));
+    max-width: 820px;
+    /* Gentle entrance on load (neutralised by the reduced-motion guard). */
+    animation: hero-rise 0.5s ease both;
+  }
+  @keyframes hero-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .eyebrow {
+    color: var(--color-primary);
+    font-weight: 600;
+    font-size: var(--text-sm);
+    letter-spacing: 0.04em;
+    margin: 0 0 var(--space-3);
+  }
+  .hero h1 {
+    font-size: clamp(2rem, 5.5vw, var(--text-3xl));
+    margin-bottom: var(--space-4);
+    text-wrap: balance;
+  }
+  .lede {
+    color: rgba(255, 255, 255, 0.82);
+    font-size: var(--text-lg);
+    max-width: 60ch;
+  }
+  .hero-cta {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-top: var(--space-5);
+  }
+  .hero-attrib {
+    margin: var(--space-6) 0 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+  }
+  .hero-attrib strong {
+    color: var(--color-text);
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+  }
+
+  /* (d) Band */
+  .band {
+    margin-block: var(--space-6);
+  }
+  .band-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-6);
+    flex-wrap: wrap;
+    padding: var(--space-6);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+  .band-inner h2 {
+    margin-bottom: var(--space-2);
+  }
+  .band-inner p {
+    color: var(--color-muted);
+    margin: 0;
+    max-width: 62ch;
+  }
+  .band-cta {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  /* (e) Quote banner — full-bleed blue. */
+  .quote-banner {
+    margin-block: var(--space-7);
+    padding-block: var(--space-7);
+    background: var(--color-secondary);
+    color: var(--color-secondary-ink);
+  }
+  .quote-banner .quote-mark {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 4rem;
+    line-height: 0.6;
+    opacity: 0.5;
+  }
+  .quote-text {
+    margin: 0;
+    max-width: 60ch;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(var(--text-lg), 2.4vw, var(--text-2xl));
+    line-height: 1.35;
+  }
+
+  /* (f) Services */
+  .services {
+    padding-block: var(--space-6);
+  }
+  .services-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-5);
+  }
+  .service-card {
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    height: 100%;
+    padding: var(--space-6);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    color: var(--color-text);
+    transition:
+      transform 0.15s ease,
+      border-color 0.15s ease;
+  }
+  .service-card:hover {
+    text-decoration: none;
+    transform: translateY(-3px);
+    border-color: var(--color-primary);
+  }
+  .service-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    margin-bottom: var(--space-4);
+    border-radius: var(--radius-pill);
+    background: rgba(74, 163, 255, 0.12);
+    color: var(--color-primary);
+  }
+  .service-name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--text-lg);
+  }
+  .service-desc {
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    margin-top: var(--space-2);
+  }
+  .service-cta {
+    margin-top: var(--space-4);
+    color: var(--color-primary);
+    font-weight: 700;
+    font-size: var(--text-sm);
+  }
+
+  /* (g) Why Togomoto */
+  .why {
+    padding-block: var(--space-6);
+  }
+  .why-inner {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: var(--space-7);
+    align-items: stretch;
+  }
+  .why-copy p {
+    color: var(--color-muted);
+    max-width: 56ch;
+  }
+  .why-list {
+    list-style: none;
+    margin: 0 0 var(--space-6);
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3) var(--space-5);
+  }
+  .why-list li {
+    position: relative;
+    padding-left: var(--space-6);
+    color: var(--color-text);
+    font-size: var(--text-sm);
+  }
+  .why-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.45em;
+    width: 14px;
+    height: 8px;
+    border-left: 2px solid var(--color-primary);
+    border-bottom: 2px solid var(--color-primary);
+    transform: rotate(-45deg);
+  }
+  .why-visual {
+    min-height: 220px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+    overflow: hidden;
+  }
+  .why-visual img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  @media (max-width: 900px) {
+    .services-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .why-inner {
+      grid-template-columns: 1fr;
+    }
+    .why-visual {
+      min-height: 160px;
+    }
+  }
+  @media (max-width: 560px) {
+    .services-grid {
+      grid-template-columns: 1fr;
+    }
+    .why-list {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,189 @@
+---
+// About (spec §5.7, §1.1, PLAN P2-8). SSG — static company content reflecting the
+// the import relationship. No data dependencies, so prerendered.
+export const prerender = true;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const values = [
+  { title: 'Inspected units', body: 'Every vehicle is checked before it is listed, so what you see is what you get.' },
+  { title: 'End-to-end service', body: 'From auction sourcing and shipping to customs clearance and LTO registration, we handle the process.' },
+  { title: 'Honest pricing', body: 'Prices are shown for information. No hidden fees — the only next step is a conversation.' },
+];
+
+// Neutral placeholder imagery for this demo clone (no real client photos). Mixed
+// orientations are handled by the CSS-columns masonry below, so each keeps its ratio.
+const gallery = [
+  { src: '/placeholder.svg', alt: 'Togomoto team lined up in front of the yard', w: 2048, h: 1536 },
+  { src: '/placeholder.svg', alt: 'Togomoto crew reviewing paperwork beside a unit', w: 1536, h: 2048 },
+  { src: '/placeholder.svg', alt: 'The team outside the Togomoto building and fleet', w: 2048, h: 1536 },
+  { src: '/placeholder.svg', alt: 'Togomoto crew giving a thumbs up in the yard', w: 2048, h: 1536 },
+  { src: '/placeholder.svg', alt: 'Crew briefing in front of the Togomoto office', w: 1536, h: 2048 },
+  { src: '/placeholder.svg', alt: 'Togomoto director with the team at the yard', w: 2048, h: 1536 },
+];
+---
+
+<BaseLayout
+  title="About"
+  description="Togomoto Industries is a Japan-surplus used vehicle and heavy equipment importer serving the Philippines — quality used cars, trucks and construction equipment, imported and inspected."
+>
+  <div class="container page">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">/</span>
+      <span class="current">About</span>
+    </nav>
+
+    <header class="intro">
+      <h1>About Togomoto</h1>
+      <p class="lede">
+        Togomoto Industries is a direct importer of quality used vehicles and
+        heavy equipment from Japan — cars, trucks and construction equipment for
+        Filipino businesses and drivers.
+      </p>
+    </header>
+
+    <figure class="about-photo">
+      <img
+        src="/og.svg"
+        alt="The Togomoto Industries team and fleet at the yard"
+        width="2048"
+        height="1536"
+        loading="lazy"
+      />
+    </figure>
+
+    <section class="prose">
+      <h2>Who we are</h2>
+      <p>
+        Togomoto Industries is a direct importer of quality used vehicles, trucks
+        and heavy equipment from Japan. Working from our Japan main office,
+        we source units straight from Japanese auctions and pass the savings on to
+        Filipino buyers — with no middleman in between. Our Philippine retail arm,
+        Togomoto Trucks &amp; Equipment, handles local sales and after-sales, so the
+        sourcing, shipping and logistics behind every unit stays in the family.
+      </p>
+      <p>
+        We are a catalogue-and-inquiry dealership: we present our inventory and
+        service offerings openly, and the one action we ask of you is to get in touch.
+        There is no cart and no checkout — every deal starts with a conversation so we
+        can match you to the right unit and walk you through the details.
+      </p>
+
+      <h2>What we do</h2>
+      <p>
+        Beyond our ready stock of used cars, trucks and heavy equipment, we source
+        specific units directly from Japan auctions, ship vehicles point to point, and
+        supply spare parts. For imported units we coordinate customs clearance, LTO
+        registration and, where needed, right-hand-drive conversion.
+      </p>
+    </section>
+
+    <section class="values">
+      <ul role="list">
+        {
+          values.map((v) => (
+            <li class="value-card">
+              <h3>{v.title}</h3>
+              <p>{v.body}</p>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="gallery-section" aria-labelledby="gallery-heading">
+      <h2 id="gallery-heading">Inside Togomoto</h2>
+      <p class="gallery-lede">Our yard, fleet and team.</p>
+      <div class="gallery">
+        {
+          gallery.map((g) => (
+            <figure>
+              <img src={g.src} alt={g.alt} width={g.w} height={g.h} loading="lazy" />
+            </figure>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="cta-band">
+      <div>
+        <h2>Ready to talk?</h2>
+        <p>Browse the latest arrivals or send us an inquiry — we'll take it from there.</p>
+      </div>
+      <div class="cta-actions">
+        <a class="btn btn--primary" href="/products/used-trucks">Browse inventory</a>
+        <a class="btn btn--ghost" href="/contact">Contact us</a>
+      </div>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .page { padding-block: var(--space-5) var(--space-7); }
+  .crumbs { color: var(--color-muted); font-size: var(--text-sm); margin-bottom: var(--space-5); }
+  .crumbs a { color: var(--color-muted); }
+  .crumbs a:hover { color: var(--color-primary); }
+  .crumbs .current { color: var(--color-text); }
+
+  .intro { max-width: 70ch; margin-bottom: var(--space-5); }
+  .lede { color: var(--color-muted); font-size: var(--text-lg); }
+
+  .about-photo { margin: 0 0 var(--space-7); }
+  .about-photo img {
+    width: 100%;
+    max-height: 420px;
+    object-fit: cover;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+  }
+
+  .prose { max-width: 70ch; }
+  .prose h2 { margin-top: var(--space-6); }
+  .prose p { color: var(--color-muted); line-height: 1.7; }
+
+  .gallery-section { margin: var(--space-7) 0; }
+  .gallery-section h2 { margin-bottom: var(--space-2); }
+  .gallery-lede { color: var(--color-muted); margin-bottom: var(--space-5); }
+  .gallery {
+    columns: 3;
+    column-gap: var(--space-4);
+  }
+  .gallery figure {
+    margin: 0 0 var(--space-4);
+    break-inside: avoid;
+  }
+  .gallery img {
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+  }
+
+  .values { margin: var(--space-7) 0; }
+  .values ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-5); }
+  .value-card { padding: var(--space-5); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+  .value-card h3 { margin: 0 0 var(--space-2); font-size: var(--text-lg); }
+  .value-card p { margin: 0; color: var(--color-muted); font-size: var(--text-sm); }
+
+  .cta-band {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); flex-wrap: wrap;
+    padding: var(--space-6); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  }
+  .cta-band h2 { margin: 0 0 var(--space-2); }
+  .cta-band p { margin: 0; color: var(--color-muted); }
+  .cta-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+  .btn { display: inline-block; padding: var(--space-3) var(--space-6); border-radius: var(--radius-md); font-weight: 700; border: 1px solid transparent; }
+  .btn:hover { text-decoration: none; }
+  .btn--primary { background: var(--color-primary); color: var(--color-primary-ink); }
+  .btn--primary:hover { filter: brightness(1.05); }
+  .btn--ghost { color: var(--color-text); border-color: var(--color-border); }
+  .btn--ghost:hover { border-color: var(--color-primary); }
+
+  @media (max-width: 760px) {
+    .values ul { grid-template-columns: 1fr; }
+    .gallery { columns: 2; }
+  }
+  @media (max-width: 480px) {
+    .gallery { columns: 1; }
+  }
+</style>

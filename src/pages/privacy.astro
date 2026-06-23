@@ -1,0 +1,102 @@
+---
+// Privacy policy (spec §5.11, §14.2, PLAN P2-8). SSG — required for production.
+// States what the inquiry forms collect, the purpose, retention, and a contact
+// for data requests, with awareness of the PH Data Privacy Act of 2012.
+export const prerender = true;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+// Static "last updated" marker — bump when the policy changes.
+const lastUpdated = 'June 2026';
+// Contact for data requests (same public inbox as the rest of the site).
+const privacyEmail = 'hello@togomoto-industries.example.com';
+---
+
+<BaseLayout
+  title="Privacy policy"
+  description="How Togomoto Industries collects and uses the information you submit through our inquiry forms."
+  noindex={false}
+>
+  <div class="container page">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">/</span>
+      <span class="current">Privacy policy</span>
+    </nav>
+
+    <article class="prose">
+      <h1>Privacy policy</h1>
+      <p class="updated">Last updated: {lastUpdated}</p>
+
+      <p>
+        This policy explains what personal information Togomoto Industries
+        collects through this website, why we collect it, how long we keep it, and how
+        you can reach us about your data. We operate with awareness of the Philippines'
+        Data Privacy Act of 2012 and the guidance of the National Privacy Commission.
+      </p>
+
+      <h2>What we collect</h2>
+      <p>
+        We collect personal information only when you submit one of our inquiry forms.
+        That information is:
+      </p>
+      <ul>
+        <li><strong>Name</strong></li>
+        <li><strong>Email address</strong></li>
+        <li><strong>Contact number</strong></li>
+        <li><strong>Company</strong> (optional)</li>
+        <li><strong>Your message</strong></li>
+      </ul>
+      <p>
+        For security and abuse prevention, our forms also use Cloudflare Turnstile and
+        may record basic technical metadata (such as your browser's user-agent) with a
+        submission. We do not run advertising trackers and we do not sell your data.
+      </p>
+
+      <h2>Why we collect it</h2>
+      <p>
+        We use this information for a single purpose: to respond to your inquiry and
+        follow up about the vehicles, equipment, parts or services you asked about. We
+        do not repurpose your contact details for unrelated marketing.
+      </p>
+
+      <h2>How long we keep it</h2>
+      <p>
+        We retain inquiry records only as long as needed to handle your request and
+        keep a reasonable record of our correspondence, after which they are removed or
+        archived. If you would like your inquiry deleted sooner, contact us and we will
+        action it.
+      </p>
+
+      <h2>Data requests</h2>
+      <p>
+        You may ask us to access, correct, or delete the personal information you have
+        submitted. To make a request, email us at
+        <a href={`mailto:${privacyEmail}`}>{privacyEmail}</a> and we will respond within
+        a reasonable time.
+      </p>
+
+      <h2>Changes to this policy</h2>
+      <p>
+        We may update this policy as our practices evolve. The "last updated" date above
+        reflects the current version.
+      </p>
+    </article>
+  </div>
+</BaseLayout>
+
+<style>
+  .page { padding-block: var(--space-5) var(--space-8); }
+  .crumbs { color: var(--color-muted); font-size: var(--text-sm); margin-bottom: var(--space-5); }
+  .crumbs a { color: var(--color-muted); }
+  .crumbs a:hover { color: var(--color-primary); }
+  .crumbs .current { color: var(--color-text); }
+
+  .prose { max-width: 70ch; }
+  .updated { color: var(--color-muted); font-size: var(--text-sm); margin-top: calc(-1 * var(--space-2)); }
+  .prose h2 { margin-top: var(--space-6); font-size: var(--text-xl); }
+  .prose p { color: var(--color-muted); line-height: 1.7; }
+  .prose ul { color: var(--color-muted); padding-left: var(--space-6); }
+  .prose li { margin-bottom: var(--space-2); }
+  .prose strong { color: var(--color-text); }
+  .prose a { color: var(--color-link); text-decoration: underline; }
+</style>

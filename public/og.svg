@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Togomoto Industries">
+  <rect width="1200" height="630" fill="#0d141d"/>
+  <rect width="1200" height="630" fill="url(#g)"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#16263a"/>
+      <stop offset="1" stop-color="#0d141d"/>
+    </linearGradient>
+  </defs>
+  <text x="100" y="300" font-family="Archivo, Arial, sans-serif" font-size="96" font-weight="700" fill="#e8eef5">Togomoto Industries</text>
+  <text x="104" y="370" font-family="Manrope, Arial, sans-serif" font-size="38" fill="#4aa3ff">Japan-surplus cars, trucks &amp; heavy equipment — demo</text>
+</svg>

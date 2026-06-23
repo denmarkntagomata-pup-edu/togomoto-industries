@@ -1,0 +1,37 @@
+{
+  "name": "togomoto-industries",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro build && wrangler dev",
+    "astro": "astro",
+    "check": "astro check",
+    "cf-typegen": "wrangler types",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply togomoto-db --local",
+    "db:seed:local": "wrangler d1 execute togomoto-db --local --file=./scripts/seed.sql"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "12.6.13",
+    "astro": "5.18.2",
+    "drizzle-orm": "^0.45.2",
+    "drizzle-zod": "^0.8.3",
+    "marked": "^18.0.5",
+    "ultrahtml": "^1.6.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.103.0"
+  }
+}

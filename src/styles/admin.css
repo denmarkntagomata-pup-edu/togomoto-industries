@@ -1,0 +1,915 @@
+/*
+ * admin.css — design system for the Togomoto admin subsystem (/admin/*).
+ *
+ * Imported ONLY by AdminLayout.astro. The admin renders its own full <html>
+ * document, fully isolated from the public site, so these global styles never
+ * touch the public theme (src/styles/tokens.css). This is the deliberate
+ * "internal CRM" palette (AGENTS.md / PLAN P1-1): dark, dense, scannable —
+ * separate from the public brand tokens.
+ *
+ * Presentation only. No behavioural contracts live here.
+ */
+
+/* ── Tokens ─────────────────────────────────────────────────────────────── */
+:root {
+  /* Surfaces — a depth scale from page background up to hover state */
+  --bg: #0d0f14;
+  --surface: #161922;
+  --surface-2: #1d212c;
+  --surface-3: #262b38; /* hover / raised */
+  --border: #2a2f3c;
+  --border-strong: #3a4150;
+
+  /* Text */
+  --text: #e8eaf0;
+  --muted: #9aa3b4;
+  --faint: #6b7384;
+
+  /* Brand accent */
+  --accent: #4f9dff;
+  --accent-hover: #6cb0ff;
+  --accent-soft: #16273d;
+  --accent-ink: #07121f; /* text on a solid accent fill */
+
+  /* Semantic families: -text (on dark), -fill (solid bg), -ink (text on fill),
+     -bg (soft tint bg), -border */
+  --success-text: #5fd693;
+  --success-fill: #1f9d57;
+  --success-ink: #042312;
+  --success-bg: #11241a;
+  --success-border: #235a37;
+
+  --warning-text: #ffce6e;
+  --warning-fill: #d9920b;
+  --warning-ink: #2a1c00;
+  --warning-bg: #261d0c;
+  --warning-border: #5a4a23;
+
+  --danger-text: #ff8f8f;
+  --danger-fill: #d23b3b;
+  --danger-ink: #2a0000;
+  --danger-bg: #271417;
+  --danger-border: #5a2a30;
+
+  --info-text: #6cb0ff;
+  --info-fill: #2f74d0;
+  --info-ink: #06121f;
+  --info-bg: #122236;
+  --info-border: #244766;
+
+  /* Inquiry-pipeline accents (one per INQUIRY_STATUSES value). Used by board
+     columns and status badges via [data-status]. */
+  --st-new: #4f9dff;
+  --st-read: #8a93a6;
+  --st-contacted: #34c3c9;
+  --st-negotiating: #e0a020;
+  --st-won: #2bbd6e;
+  --st-lost: #e25555;
+  --st-archived: #5b6373;
+
+  /* Spacing */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+
+  /* Radius */
+  --r-sm: 6px;
+  --r-md: 9px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  /* Shadow */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.35);
+
+  /* Type */
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-display: 'Segoe UI Semibold', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'Cascadia Code', Menlo, Consolas, monospace;
+
+  --sidebar-w: 232px;
+}
+
+/* ── Base ───────────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+html {
+  color-scheme: dark;
+}
+body {
+  margin: 0;
+  font: 15px/1.55 var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--accent-hover);
+}
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.muted {
+  color: var(--muted);
+}
+.faint {
+  color: var(--faint);
+}
+.small {
+  font-size: 0.82rem;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Icon presentation. The sprite <symbol>s carry no styling (a <use> clone does
+   not inherit from the sprite's ancestors), so all rendered icons — every <svg>
+   inside .admin-shell; the sprite itself sits outside it — are styled here. */
+.admin-shell svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ic {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+/* ── App shell (sidebar + main) ─────────────────────────────────────────── */
+.admin-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.admin-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-3);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  z-index: 30;
+}
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3) var(--sp-4);
+}
+.admin-brand .mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, var(--accent), #2f74d0);
+  color: var(--accent-ink);
+  flex: 0 0 auto;
+}
+.admin-brand .mark svg {
+  width: 20px;
+  height: 20px;
+}
+.admin-brand .name {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.admin-brand .name strong {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+.admin-brand .name span {
+  font-size: 0.72rem;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.admin-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.admin-nav a {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--r-md);
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.admin-nav a svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+.admin-nav a:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.admin-nav a[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.admin-nav a[aria-current='page'] svg {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.admin-sidebar-foot {
+  margin-top: auto;
+  padding: var(--sp-3);
+  font-size: 0.74rem;
+  color: var(--faint);
+  border-top: 1px solid var(--border);
+}
+.admin-sidebar-foot a {
+  color: var(--muted);
+}
+
+.admin-main {
+  min-width: 0;
+  padding: var(--sp-5) var(--sp-6);
+  max-width: 1320px;
+}
+
+/* Mobile-only chrome — hidden on desktop so they don't take a grid cell
+   (an in-flow scrim would otherwise steal column 2 from .admin-main). */
+.admin-topbar {
+  display: none;
+}
+.admin-scrim {
+  display: none;
+}
+
+/* ── Page head ──────────────────────────────────────────────────────────── */
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-5);
+}
+.page-head .title-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+.page-head .count {
+  color: var(--faint);
+  font-size: 1rem;
+  font-weight: 500;
+}
+.page-head .actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0 0 var(--sp-3);
+}
+.crumb svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 0.5rem 0.95rem;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.1;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.btn svg {
+  width: 16px;
+  height: 16px;
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  color: var(--accent-ink);
+}
+.btn-secondary {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.btn-danger {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border-color: var(--danger-border);
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-fill);
+  color: #fff;
+  border-color: var(--danger-fill);
+}
+.btn-sm {
+  padding: 0.32rem 0.6rem;
+  font-size: 0.82rem;
+}
+
+/* Icon-only button */
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.icon-btn.danger:hover:not(:disabled) {
+  background: var(--danger-fill);
+  border-color: var(--danger-fill);
+  color: #fff;
+}
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--accent);
+  cursor: pointer;
+}
+.link-btn:hover {
+  color: var(--accent-hover);
+}
+
+/* ── Badges ─────────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.4;
+  padding: 0.12rem 0.5rem;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.badge.dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+.badge-success {
+  color: var(--success-text);
+  background: var(--success-bg);
+  border-color: var(--success-border);
+}
+.badge-warning {
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+.badge-danger {
+  color: var(--danger-text);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
+.badge-info {
+  color: var(--info-text);
+  background: var(--info-bg);
+  border-color: var(--info-border);
+}
+
+/* Status badges keyed by inquiry status value */
+.badge-status[data-status] {
+  color: var(--_c, var(--muted));
+  border-color: color-mix(in srgb, var(--_c, var(--border-strong)) 45%, transparent);
+  background: color-mix(in srgb, var(--_c, var(--surface-3)) 16%, var(--surface));
+}
+.badge-status[data-status='new'] {
+  --_c: var(--st-new);
+}
+.badge-status[data-status='read'] {
+  --_c: var(--st-read);
+}
+.badge-status[data-status='contacted'] {
+  --_c: var(--st-contacted);
+}
+.badge-status[data-status='negotiating'] {
+  --_c: var(--st-negotiating);
+}
+.badge-status[data-status='won'] {
+  --_c: var(--st-won);
+}
+.badge-status[data-status='lost'] {
+  --_c: var(--st-lost);
+}
+.badge-status[data-status='archived'] {
+  --_c: var(--st-archived);
+}
+
+/* Sale-status badge (listings) */
+.badge-sale[data-sale='available'] {
+  color: var(--success-text);
+  background: var(--success-bg);
+  border-color: var(--success-border);
+}
+.badge-sale[data-sale='reserved'] {
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+.badge-sale[data-sale='sold'] {
+  color: var(--danger-text);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
+.badge-sale[data-sale='incoming'] {
+  color: var(--info-text);
+  background: var(--info-bg);
+  border-color: var(--info-border);
+}
+
+/* ── Panels / cards ─────────────────────────────────────────────────────── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+}
+.section-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+  margin: 0 0 var(--sp-3);
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+
+/* ── Data table ─────────────────────────────────────────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  /* Positioning context: contains any position:absolute descendant (e.g. the
+     inline sr-only <label>s on status selects) within the horizontal scroll so
+     they don't widen the page on narrow viewports. */
+  position: relative;
+}
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px;
+}
+table.data-table th,
+table.data-table td {
+  text-align: left;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+table.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+table.data-table thead th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--faint);
+  font-weight: 700;
+  background: var(--surface-2);
+  position: sticky;
+  top: 0;
+}
+table.data-table tbody tr {
+  transition: background 0.1s ease;
+}
+table.data-table tbody tr:hover {
+  background: var(--surface-2);
+}
+table.data-table td a {
+  font-weight: 500;
+}
+.thumb-cell {
+  width: 76px;
+}
+.thumb-cell img {
+  width: 64px;
+  height: 48px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  display: block;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+}
+.no-thumb {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 48px;
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--faint);
+}
+.no-thumb svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ── Filters bar ────────────────────────────────────────────────────────── */
+.filters {
+  display: flex;
+  gap: var(--sp-4);
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.filters label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+.filters .reset {
+  align-self: center;
+  font-size: 0.85rem;
+}
+
+/* ── Form primitives ────────────────────────────────────────────────────── */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  font-size: 0.85rem;
+  min-width: 0;
+}
+.field.span-2 {
+  grid-column: 1 / -1;
+}
+.field > span {
+  color: var(--muted);
+  font-weight: 500;
+}
+.field em {
+  color: var(--danger-text);
+  font-style: normal;
+}
+.field.check {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.field.check input {
+  width: auto;
+}
+.field.check span {
+  color: var(--text);
+}
+
+/* Inputs — applied to admin controls everywhere */
+.field input[type='text'],
+.field input[type='number'],
+.field input[type='file'],
+.field select,
+.field textarea,
+.filters select,
+.filters input,
+.input {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  width: 100%;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.filters select,
+.filters input {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.5rem;
+}
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.filters select:focus,
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.field textarea {
+  resize: vertical;
+}
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--faint);
+}
+.hint {
+  color: var(--faint);
+  font-size: 0.75rem;
+}
+.err {
+  color: var(--danger-text);
+  font-size: 0.78rem;
+}
+
+/* Status select used inline (board / list / detail) */
+.status-select {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  padding: 0.3rem 0.45rem;
+  font: inherit;
+  font-size: 0.83rem;
+}
+.status-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Grouped form section */
+fieldset.form-section {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  margin: 0 0 var(--sp-5);
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+  background: var(--surface);
+  min-width: 0;
+}
+fieldset.form-section > legend {
+  padding: 0 var(--sp-2);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-top: var(--sp-5);
+}
+.form-actions .cancel {
+  color: var(--muted);
+}
+
+/* Status message box (form-status / img-status) */
+.status-message {
+  margin: 0 0 var(--sp-4);
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--r-md);
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.status-message[data-kind='error'] {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-text);
+}
+.status-message[data-kind='ok'] {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  color: var(--success-text);
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sp-3);
+  padding: var(--sp-6) var(--sp-4);
+  color: var(--muted);
+}
+.empty-state .ico {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--faint);
+}
+.empty-state .ico svg {
+  width: 26px;
+  height: 26px;
+}
+.empty-state p {
+  margin: 0;
+}
+
+/* ── Reduced motion (admin is its own document) ─────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Responsive: collapse sidebar to a drawer ───────────────────────────── */
+@media (max-width: 860px) {
+  .admin-shell {
+    grid-template-columns: 1fr;
+  }
+  .admin-topbar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 40;
+  }
+  .admin-topbar .admin-brand {
+    padding: 0;
+    flex: 1 1 auto;
+  }
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: min(82vw, var(--sidebar-w));
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: var(--shadow-2);
+  }
+  .admin-shell[data-drawer='open'] .admin-sidebar {
+    transform: translateX(0);
+  }
+  .admin-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 35;
+  }
+  .admin-shell[data-drawer='open'] .admin-scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .admin-main {
+    padding: var(--sp-4);
+  }
+  .admin-brand .name {
+    /* keep brand text in the topbar */
+  }
+}
+
+/* Collapse the two-column form grid before the sidebar drawer kicks in — a
+   2-up field layout is already cramped on mid-size phones/tablets. Applies to
+   every admin form (Listing/SparePart/Announcement) via the shared class. */
+@media (max-width: 620px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-main {
+    padding: var(--sp-3);
+  }
+  h1 {
+    font-size: 1.3rem;
+  }
+  /* Filter bars: stack each control full-width so selects aren't squeezed, and
+     let the action row (Apply/Reset) span the full width. */
+  .filters {
+    gap: var(--sp-3);
+  }
+  .filters label {
+    width: 100%;
+  }
+  .filters .btn,
+  .filters .reset {
+    width: 100%;
+    text-align: center;
+  }
+}

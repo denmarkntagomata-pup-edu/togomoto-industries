@@ -1,0 +1,47 @@
+---
+// Contact (spec §5.9, PLAN P2-8). SSG shell — hosts the shared ConnectSection
+// (source=contact), which wraps the inquiry form + social/address rail. The form
+// POSTs to the SSR /api/inquiries endpoint, so a prerendered shell is fine.
+export const prerender = true;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ConnectSection from '../components/ConnectSection.astro';
+---
+
+<BaseLayout
+  title="Contact"
+  description="Get in touch with Togomoto Industries — send an inquiry about our used cars, trucks, heavy equipment, shipping or spare parts."
+>
+  <div class="container page">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">/</span>
+      <span class="current">Contact</span>
+    </nav>
+  </div>
+
+  <ConnectSection
+    source="contact"
+    submitLabel="Send message"
+    heading="Connect and talk to us!"
+    lede="Have a unit in mind, a shipping route, or a parts request? Send us a message and our team will get back to you shortly."
+  />
+</BaseLayout>
+
+<style>
+  .page {
+    padding-top: var(--space-5);
+  }
+  .crumbs {
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+  }
+  .crumbs a {
+    color: var(--color-muted);
+  }
+  .crumbs a:hover {
+    color: var(--color-primary);
+  }
+  .crumbs .current {
+    color: var(--color-text);
+  }
+</style>

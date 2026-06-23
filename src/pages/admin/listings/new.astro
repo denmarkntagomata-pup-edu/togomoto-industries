@@ -1,0 +1,21 @@
+---
+// Create a new listing (spec §8.2, PLAN P1-8). Core fields only — images are
+// attached on the edit page once the row exists (it needs the listing id). On
+// successful POST the form redirects to /admin/listings/:id. SSR; Access-gated.
+export const prerender = false;
+
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import ListingForm from '../../../components/admin/ListingForm.astro';
+---
+
+<AdminLayout title="New listing" active="listings">
+  <p class="crumb"><a href="/admin/listings"><svg class="ic"><use href="#i-arrow-left" /></svg> Listings</a></p>
+  <div class="page-head"><div class="title-wrap"><h1>New listing</h1></div></div>
+  <p class="muted intro">Save the core details first; you can add images after it’s created.</p>
+  <ListingForm />
+</AdminLayout>
+
+<style>
+  .page-head { margin-bottom: var(--sp-3); }
+  .intro { margin: 0 0 1.25rem; font-size: 0.9rem; }
+</style>

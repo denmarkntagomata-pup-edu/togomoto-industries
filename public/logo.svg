@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 975 369" role="img" aria-label="Togomoto Industries">
+  <rect width="975" height="369" fill="none"/>
+  <g fill="#4aa3ff">
+    <rect x="40" y="150" width="70" height="70" rx="8"/>
+    <rect x="120" y="110" width="70" height="150" rx="8" opacity="0.7"/>
+  </g>
+  <text x="220" y="185" font-family="Archivo, Arial, sans-serif" font-size="86" font-weight="700" fill="#e8eef5">Togomoto</text>
+  <text x="222" y="255" font-family="Manrope, Arial, sans-serif" font-size="44" font-weight="600" letter-spacing="6" fill="#4aa3ff">INDUSTRIES</text>
+</svg>

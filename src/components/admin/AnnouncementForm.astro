@@ -1,0 +1,166 @@
+---
+// Shared create/edit form for admin announcements (spec §5.8/§8, PLAN P2-5).
+// Optional cover image, so the form submits as multipart/form-data (POST on
+// create, PATCH on edit). The body is Markdown source (rendered to sanitised
+// HTML on the public detail page). Client validation is UX only; the server
+// (Zod + image sniff) is authoritative. Inside AdminLayout → dark palette.
+import type { Announcement } from '../../db/schema';
+import { imageUrl } from '../../lib/images';
+
+interface Props {
+  announcement?: Announcement;
+}
+const { announcement } = Astro.props;
+const mode: 'create' | 'edit' = announcement ? 'edit' : 'create';
+
+const v = {
+  title: announcement?.title ?? '',
+  slug: announcement?.slug ?? '',
+  excerpt: announcement?.excerpt ?? '',
+  body: announcement?.body ?? '',
+  author: announcement?.author ?? '',
+};
+const currentCoverKey = announcement?.coverImageR2Key ?? null;
+---
+
+<form id="ann-form" data-mode={mode} data-id={announcement ? String(announcement.id) : ''} novalidate>
+  <p class="status-message" id="form-status" role="status" aria-live="polite" hidden></p>
+
+  <fieldset class="form-section">
+    <legend>Details</legend>
+    <div class="form-grid">
+      <label class="field span-2">
+        <span>Title <em>*</em></span>
+        <input type="text" name="title" value={v.title} maxlength="200" required />
+        <small class="err" data-err="title"></small>
+      </label>
+
+      {mode === 'edit' && (
+        <label class="field span-2">
+          <span>Slug</span>
+          <input type="text" name="slug" value={v.slug} maxlength="200" />
+          <small class="hint">Auto-deduplicated. Changing it changes the public URL.</small>
+          <small class="err" data-err="slug"></small>
+        </label>
+      )}
+
+      <label class="field">
+        <span>Author</span>
+        <input type="text" name="author" value={v.author} maxlength="120" />
+      </label>
+      <label class="field check">
+        <input type="checkbox" name="isPublished" checked={announcement?.isPublished ?? false} />
+        <span>Published (visible on the public site)</span>
+      </label>
+
+      <label class="field span-2">
+        <span>Excerpt</span>
+        <textarea name="excerpt" rows="2" maxlength="500">{v.excerpt}</textarea>
+        <small class="hint">Short summary shown on the announcements index.</small>
+      </label>
+
+      <label class="field span-2">
+        <span>Body (Markdown) <em>*</em></span>
+        <textarea name="body" rows="14" maxlength="50000" required>{v.body}</textarea>
+        <small class="hint">Markdown is rendered to sanitised HTML on the public page.</small>
+        <small class="err" data-err="body"></small>
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>Cover image <span class="muted">(optional · JPEG, PNG or WebP · ≤ 5 MB · longest edge ≤ 4000px)</span></legend>
+    {currentCoverKey && (
+      <div class="current-image">
+        <img src={imageUrl(currentCoverKey, 'thumb')} alt="" width="96" height="72" loading="lazy" />
+        <label class="check remove-check">
+          <input type="checkbox" name="removeImage" value="1" />
+          <span>Remove current cover</span>
+        </label>
+      </div>
+    )}
+    <input type="file" name="coverImage" class="input" accept="image/jpeg,image/png,image/webp" />
+    <small class="hint">{currentCoverKey ? 'Choosing a file replaces the current cover.' : 'Choose a file to attach a cover image.'}</small>
+    <small class="err" data-err="coverImage"></small>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">{mode === 'create' ? 'Create announcement' : 'Save changes'}</button>
+    <a class="cancel" href="/admin/announcements">Cancel</a>
+  </div>
+</form>
+
+<script>
+  const form = document.getElementById('ann-form') as HTMLFormElement | null;
+  if (form) {
+    const mode = form.dataset.mode;
+    const id = form.dataset.id;
+    const statusEl = document.getElementById('form-status')!;
+    const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+
+    const clearErrors = () => {
+      form.querySelectorAll<HTMLElement>('.err').forEach((el) => (el.textContent = ''));
+    };
+    const showStatus = (msg: string, kind: 'error' | 'ok') => {
+      statusEl.textContent = msg;
+      statusEl.dataset.kind = kind;
+      statusEl.hidden = false;
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearErrors();
+      statusEl.hidden = true;
+      submitBtn.disabled = true;
+
+      const url = mode === 'create' ? '/api/admin/announcements' : `/api/admin/announcements/${id}`;
+      const method = mode === 'create' ? 'POST' : 'PATCH';
+      try {
+        // Multipart body — let the browser set the boundary Content-Type.
+        const res = await fetch(url, { method, body: new FormData(form) });
+        const out = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          fields?: Record<string, string[]>;
+        };
+
+        if (!res.ok) {
+          if (out.fields) {
+            for (const [name, msgs] of Object.entries(out.fields)) {
+              const target = form.querySelector<HTMLElement>(`.err[data-err="${name}"]`);
+              if (target) target.textContent = msgs.join(', ');
+            }
+          }
+          showStatus(out.error ?? `Request failed (${res.status})`, 'error');
+          submitBtn.disabled = false;
+          return;
+        }
+
+        window.location.href = '/admin/announcements';
+      } catch (err) {
+        showStatus('Network error — please try again.', 'error');
+        submitBtn.disabled = false;
+        console.error(err);
+      }
+    });
+  }
+</script>
+
+<style>
+  /* Form primitives come from admin.css. Page-specific bits only below. */
+  .field textarea[name='body'] { font-family: var(--font-mono); line-height: 1.5; }
+  .current-image { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.8rem; }
+  .current-image img {
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .remove-check { display: flex; align-items: center; gap: 0.4rem; color: var(--text); }
+  .remove-check input { width: auto; }
+
+  @media (max-width: 720px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .field.span-2 { grid-column: auto; }
+  }
+</style>

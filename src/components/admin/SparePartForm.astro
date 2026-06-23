@@ -1,0 +1,162 @@
+---
+// Shared create/edit form for admin spare parts (spec §8.7, PLAN P2-4). One
+// optional image, so the form submits as multipart/form-data (POST on create,
+// PATCH on edit). Client validation is UX only; the server (Zod + image sniff)
+// is authoritative. Lives inside AdminLayout → inherits the admin dark palette.
+import type { SparePart } from '../../db/schema';
+import { imageUrl } from '../../lib/images';
+
+interface Props {
+  sparePart?: SparePart;
+}
+const { sparePart } = Astro.props;
+const mode: 'create' | 'edit' = sparePart ? 'edit' : 'create';
+
+const v = {
+  name: sparePart?.name ?? '',
+  category: sparePart?.category ?? '',
+  description: sparePart?.description ?? '',
+  price: sparePart?.price ?? '',
+  sortOrder: sparePart?.sortOrder ?? 0,
+};
+const currentImageKey = sparePart?.imageR2Key ?? null;
+---
+
+<form id="part-form" data-mode={mode} data-id={sparePart ? String(sparePart.id) : ''} novalidate>
+  <p class="status-message" id="form-status" role="status" aria-live="polite" hidden></p>
+
+  <fieldset class="form-section">
+    <legend>Details</legend>
+    <div class="form-grid">
+      <label class="field span-2">
+        <span>Name <em>*</em></span>
+        <input type="text" name="name" value={v.name} maxlength="200" required />
+        <small class="err" data-err="name"></small>
+      </label>
+
+      <label class="field">
+        <span>Category grouping</span>
+        <input type="text" name="category" value={v.category} maxlength="120" placeholder="e.g. Engine, Brakes" />
+        <small class="hint">Optional. Used to group parts on the public page.</small>
+      </label>
+      <label class="field">
+        <span>Price (₱)</span>
+        <input type="number" name="price" value={v.price} min="0" step="1" />
+        <small class="hint">Leave blank to hide the price.</small>
+        <small class="err" data-err="price"></small>
+      </label>
+
+      <label class="field span-2">
+        <span>Description</span>
+        <textarea name="description" rows="4" maxlength="5000">{v.description}</textarea>
+      </label>
+
+      <label class="field">
+        <span>Sort order</span>
+        <input type="number" name="sortOrder" value={v.sortOrder} min="0" step="1" />
+        <small class="hint">Lower numbers appear first.</small>
+        <small class="err" data-err="sortOrder"></small>
+      </label>
+      <label class="field check">
+        <input type="checkbox" name="isPublished" checked={sparePart?.isPublished ?? false} />
+        <span>Published (visible on the public site)</span>
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>Image <span class="muted">(optional · JPEG, PNG or WebP · ≤ 5 MB · longest edge ≤ 4000px)</span></legend>
+    {currentImageKey && (
+      <div class="current-image">
+        <img src={imageUrl(currentImageKey, 'thumb')} alt="" width="96" height="72" loading="lazy" />
+        <label class="check remove-check">
+          <input type="checkbox" name="removeImage" value="1" />
+          <span>Remove current image</span>
+        </label>
+      </div>
+    )}
+    <input type="file" name="image" class="input" accept="image/jpeg,image/png,image/webp" />
+    <small class="hint">{currentImageKey ? 'Choosing a file replaces the current image.' : 'Choose a file to attach an image.'}</small>
+    <small class="err" data-err="image"></small>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">{mode === 'create' ? 'Create spare part' : 'Save changes'}</button>
+    <a class="cancel" href="/admin/spare-parts">Cancel</a>
+  </div>
+</form>
+
+<script>
+  const form = document.getElementById('part-form') as HTMLFormElement | null;
+  if (form) {
+    const mode = form.dataset.mode;
+    const id = form.dataset.id;
+    const statusEl = document.getElementById('form-status')!;
+    const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+
+    const clearErrors = () => {
+      form.querySelectorAll<HTMLElement>('.err').forEach((el) => (el.textContent = ''));
+    };
+    const showStatus = (msg: string, kind: 'error' | 'ok') => {
+      statusEl.textContent = msg;
+      statusEl.dataset.kind = kind;
+      statusEl.hidden = false;
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearErrors();
+      statusEl.hidden = true;
+      submitBtn.disabled = true;
+
+      const url = mode === 'create' ? '/api/admin/spare-parts' : `/api/admin/spare-parts/${id}`;
+      const method = mode === 'create' ? 'POST' : 'PATCH';
+      try {
+        // Multipart body — let the browser set the boundary Content-Type.
+        const res = await fetch(url, { method, body: new FormData(form) });
+        const out = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          fields?: Record<string, string[]>;
+        };
+
+        if (!res.ok) {
+          if (out.fields) {
+            for (const [name, msgs] of Object.entries(out.fields)) {
+              const target = form.querySelector<HTMLElement>(`.err[data-err="${name}"]`);
+              if (target) target.textContent = msgs.join(', ');
+            }
+          }
+          showStatus(out.error ?? `Request failed (${res.status})`, 'error');
+          submitBtn.disabled = false;
+          return;
+        }
+
+        // Back to the list on success (create or edit).
+        window.location.href = '/admin/spare-parts';
+      } catch (err) {
+        showStatus('Network error — please try again.', 'error');
+        submitBtn.disabled = false;
+        console.error(err);
+      }
+    });
+  }
+</script>
+
+<style>
+  /* Form primitives come from admin.css. Image-preview bits only below. */
+  .current-image { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.8rem; }
+  .current-image img {
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .remove-check { display: flex; align-items: center; gap: 0.4rem; color: var(--text); }
+  .remove-check input { width: auto; }
+
+  @media (max-width: 720px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .field.span-2 { grid-column: auto; }
+  }
+</style>

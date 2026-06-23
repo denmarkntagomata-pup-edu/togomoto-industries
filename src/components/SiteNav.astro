@@ -1,0 +1,471 @@
+---
+// Primary navigation (spec §3.4). Two tiers:
+//  • Top utility bar — email, phone and a Contact link, right-aligned. In normal
+//    flow, so it scrolls away.
+//  • Main bar — brand, the "Products & Services" dropdown, the rest of the links
+//    and a product search box. Sticky (top:0). Its bottom corners are curved
+//    "inward" at rest and straighten while the page is actively scrolling, then
+//    animate back to curved once scrolling stops (see the scroll script below).
+// Category hrefs come from the enum slug map so they never drift from the routes.
+import { SLUG_BY_CATEGORY } from '../db/enums';
+
+const path = Astro.url.pathname;
+const isActive = (...prefixes: string[]) =>
+  prefixes.some((p) => (p === '/' ? path === '/' : path === p || path.startsWith(p + '/') || path.startsWith(p)));
+
+const productsActive = isActive('/products', '/services', '/spare-parts');
+
+// Top-bar contact — mirrors AddressBlock.astro / jsonld.ts (single source of
+// truth for the shared-location contact details; keep the three in sync).
+const CONTACT_EMAIL = 'hello@togomoto-industries.example.com';
+const CONTACT_PHONE = '(555) 010-1234';
+const CONTACT_PHONE_HREF = 'tel:+15550101234';
+---
+
+{/* ── Top utility bar (scrolls away) ── */}
+<div class="topbar">
+  <div class="container topbar-inner">
+    <a class="topbar-link" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
+    <a class="topbar-link" href={CONTACT_PHONE_HREF}>{CONTACT_PHONE}</a>
+    <a class="topbar-link" href="/contact">Contact Us</a>
+  </div>
+</div>
+
+{/* ── Main bar (sticky, curved) ── */}
+<header class="site-nav" data-site-nav>
+  <div class="container nav-inner">
+    <a href="/" class="brand" aria-label="Togomoto Industries — home">
+      <img class="brand-logo" src="/logo.svg" alt="Togomoto Industries" width="975" height="369" />
+    </a>
+
+    <button
+      class="nav-toggle"
+      type="button"
+      aria-expanded="false"
+      aria-controls="primary-menu"
+      aria-label="Toggle navigation menu"
+      data-nav-toggle
+    >
+      <span class="bar" aria-hidden="true"></span>
+      <span class="bar" aria-hidden="true"></span>
+      <span class="bar" aria-hidden="true"></span>
+    </button>
+
+    <div id="primary-menu" class="primary-menu">
+      <nav class="primary-nav" aria-label="Primary">
+        <ul class="menu">
+          <li>
+            <a href="/" aria-current={path === '/' ? 'page' : undefined}>Home</a>
+          </li>
+
+          <li class="has-dropdown" data-dropdown>
+            <button
+              type="button"
+              class="dropdown-trigger"
+              aria-expanded="false"
+              aria-haspopup="true"
+              aria-current={productsActive ? 'true' : undefined}
+              data-dropdown-trigger
+            >
+              Products &amp; Services
+              <svg class="caret" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                <path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <ul class="dropdown">
+              <li><a href={`/products/${SLUG_BY_CATEGORY.used_car}`}>Used cars</a></li>
+              <li><a href={`/products/${SLUG_BY_CATEGORY.used_truck}`}>Used trucks</a></li>
+              <li><a href={`/products/${SLUG_BY_CATEGORY.used_heavy_equipment}`}>Used heavy equipment</a></li>
+              <li class="divider" role="separator"></li>
+              <li><a href="/services/auction-request">Auction request</a></li>
+              <li><a href="/services/vehicle-shipping">Vehicle shipping</a></li>
+              <li><a href="/spare-parts">Spare parts</a></li>
+            </ul>
+          </li>
+
+          <li><a href="/announcements" aria-current={isActive('/announcements') ? 'page' : undefined}>Announcements</a></li>
+          <li><a href="/about" aria-current={isActive('/about') ? 'page' : undefined}>About</a></li>
+          <li><a href="/contact" aria-current={isActive('/contact') ? 'page' : undefined}>Contact</a></li>
+        </ul>
+      </nav>
+
+      <form class="nav-search" role="search" action="/search" method="get">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="m21 21-4.3-4.3"></path>
+        </svg>
+        <input
+          type="search"
+          name="q"
+          placeholder="Search Products/Service"
+          aria-label="Search products and services"
+          autocomplete="off"
+        />
+      </form>
+    </div>
+  </div>
+</header>
+
+<style>
+  /* ── Top utility bar ── */
+  .topbar {
+    background: var(--color-bg-deep);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--text-sm);
+  }
+  .topbar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-6);
+    min-height: 40px;
+  }
+  .topbar-link {
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+  .topbar-link:hover {
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  /* ── Main bar (sticky + curved) ── */
+  .site-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-md);
+    /* Curved "inward" at rest; straightens while scrolling (.is-scrolling). */
+    border-bottom-left-radius: var(--radius-lg);
+    border-bottom-right-radius: var(--radius-lg);
+    transition: border-radius 0.35s ease;
+  }
+  .site-nav.is-scrolling {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    min-height: var(--nav-h);
+  }
+
+  /* ── Brand ── */
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: var(--color-text);
+  }
+  .brand:hover {
+    text-decoration: none;
+  }
+  .brand-logo {
+    height: 44px;
+    width: auto;
+  }
+
+  /* ── Menu container (holds nav + search) ── */
+  .primary-menu {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    flex: 1;
+  }
+  .menu {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .menu a,
+  .dropdown-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    font: inherit;
+    font-weight: 500;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease;
+  }
+  .menu a:hover,
+  .dropdown-trigger:hover {
+    background: var(--color-surface-2);
+    text-decoration: none;
+  }
+  .menu a[aria-current='page'],
+  .dropdown-trigger[aria-current='true'] {
+    color: var(--color-primary);
+  }
+
+  /* ── Search ── */
+  .nav-search {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+    min-width: 220px;
+    max-width: 320px;
+    flex: 0 1 320px;
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+  }
+  .nav-search:focus-within {
+    border-color: var(--color-primary);
+  }
+  .search-icon {
+    flex: none;
+    color: var(--color-muted);
+  }
+  .nav-search input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: 0;
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--text-sm);
+  }
+  .nav-search input::placeholder {
+    color: var(--color-muted);
+  }
+  .nav-search input:focus {
+    outline: none;
+  }
+
+  /* ── Dropdown ── */
+  .has-dropdown {
+    position: relative;
+  }
+  .caret {
+    transition: transform 0.15s ease;
+  }
+  .dropdown {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    left: 0;
+    min-width: 230px;
+    list-style: none;
+    margin: 0;
+    padding: var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    display: none;
+  }
+  .dropdown li {
+    list-style: none;
+  }
+  .dropdown a {
+    display: block;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-weight: 500;
+  }
+  .dropdown a:hover {
+    background: var(--color-surface-2);
+  }
+  .dropdown .divider {
+    height: 1px;
+    margin: var(--space-2) var(--space-2);
+    background: var(--color-border);
+  }
+  .has-dropdown[data-open] .dropdown {
+    display: block;
+  }
+  .has-dropdown[data-open] .caret {
+    transform: rotate(180deg);
+  }
+  @media (hover: hover) {
+    .has-dropdown:hover .dropdown {
+      display: block;
+    }
+    .has-dropdown:hover .caret {
+      transform: rotate(180deg);
+    }
+  }
+
+  /* ── Mobile toggle (hidden on desktop) ── */
+  .nav-toggle {
+    display: none;
+    flex-direction: column;
+    gap: 5px;
+    padding: var(--space-3);
+    margin-left: auto;
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+  .nav-toggle .bar {
+    width: 22px;
+    height: 2px;
+    background: var(--color-text);
+    border-radius: 2px;
+  }
+
+  /* ── Mobile layout ── */
+  @media (max-width: 860px) {
+    .nav-toggle {
+      display: inline-flex;
+    }
+    .primary-menu {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: var(--nav-h);
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-4);
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      border-bottom-left-radius: var(--radius-lg);
+      border-bottom-right-radius: var(--radius-lg);
+      padding: var(--space-4) var(--space-5) var(--space-5);
+      display: none;
+    }
+    .primary-menu[data-open] {
+      display: flex;
+    }
+    .primary-nav {
+      width: 100%;
+    }
+    .menu {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-1);
+    }
+    .menu a,
+    .dropdown-trigger {
+      width: 100%;
+      justify-content: space-between;
+    }
+    .dropdown {
+      position: static;
+      display: none;
+      box-shadow: none;
+      border: 0;
+      padding: 0 0 var(--space-2) var(--space-4);
+      background: none;
+      min-width: 0;
+    }
+    .has-dropdown[data-open] .dropdown {
+      display: block;
+    }
+    .nav-search {
+      order: -1; /* search at the top of the drawer */
+      margin-left: 0;
+      max-width: none;
+      flex: 1 1 auto;
+      width: 100%;
+    }
+  }
+</style>
+
+<script>
+  // Mobile drawer toggle.
+  const navToggle = document.querySelector<HTMLButtonElement>('[data-nav-toggle]');
+  const menu = document.getElementById('primary-menu');
+  navToggle?.addEventListener('click', () => {
+    const open = menu?.toggleAttribute('data-open');
+    navToggle.setAttribute('aria-expanded', String(Boolean(open)));
+  });
+
+  // Products & Services dropdown: click/keyboard toggle (hover handled in CSS).
+  const dropdown = document.querySelector<HTMLLIElement>('[data-dropdown]');
+  const trigger = document.querySelector<HTMLButtonElement>('[data-dropdown-trigger]');
+  // The focusable menu items inside the dropdown, for arrow-key navigation.
+  const items = dropdown
+    ? Array.from(dropdown.querySelectorAll<HTMLAnchorElement>('.dropdown a'))
+    : [];
+
+  const openDropdown = () => {
+    dropdown?.setAttribute('data-open', '');
+    trigger?.setAttribute('aria-expanded', 'true');
+  };
+  const closeDropdown = (focusTrigger = false) => {
+    dropdown?.removeAttribute('data-open');
+    trigger?.setAttribute('aria-expanded', 'false');
+    if (focusTrigger) trigger?.focus();
+  };
+  const focusItem = (i: number) => {
+    if (items.length === 0) return;
+    const idx = (i + items.length) % items.length;
+    items[idx].focus();
+  };
+
+  trigger?.addEventListener('click', () => {
+    if (dropdown?.hasAttribute('data-open')) closeDropdown();
+    else openDropdown();
+  });
+  // From the trigger: Down/Up/Enter/Space open the menu and move focus into it.
+  trigger?.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openDropdown();
+      focusItem(0);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      openDropdown();
+      focusItem(-1);
+    }
+  });
+  // Within the menu: roving arrow/Home/End nav; Escape returns focus to the trigger.
+  items.forEach((item, i) => {
+    item.addEventListener('keydown', (e) => {
+      switch (e.key) {
+        case 'ArrowDown': e.preventDefault(); focusItem(i + 1); break;
+        case 'ArrowUp': e.preventDefault(); focusItem(i - 1); break;
+        case 'Home': e.preventDefault(); focusItem(0); break;
+        case 'End': e.preventDefault(); focusItem(-1); break;
+        case 'Escape': e.preventDefault(); closeDropdown(true); break;
+      }
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (dropdown && !dropdown.contains(e.target as Node)) closeDropdown();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeDropdown();
+      if (menu?.hasAttribute('data-open')) {
+        menu.removeAttribute('data-open');
+        navToggle?.setAttribute('aria-expanded', 'false');
+      }
+    }
+  });
+
+  // Curved-corner animation: straighten the sticky bar's bottom corners while the
+  // page is actively scrolling, then animate back to curved once scrolling stops.
+  const siteNav = document.querySelector<HTMLElement>('[data-site-nav]');
+  if (siteNav) {
+    let idle: ReturnType<typeof setTimeout>;
+    window.addEventListener(
+      'scroll',
+      () => {
+        siteNav.classList.add('is-scrolling');
+        clearTimeout(idle);
+        idle = setTimeout(() => siteNav.classList.remove('is-scrolling'), 150);
+      },
+      { passive: true },
+    );
+  }
+</script>

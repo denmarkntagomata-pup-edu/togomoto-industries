@@ -1,0 +1,63 @@
+---
+// Edit an announcement + delete (spec §5.8/§8, PLAN P2-5). The form PATCHes
+// /api/admin/announcements/:id (multipart); the delete button DELETEs it and the
+// endpoint removes the R2 cover image. SSR; Access-gated. 404 on unknown/invalid id.
+export const prerender = false;
+
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AnnouncementForm from '../../../components/admin/AnnouncementForm.astro';
+import { getAnnouncement } from '../../../lib/announcements';
+
+const id = Number(Astro.params.id);
+if (!Number.isInteger(id) || id <= 0) {
+  return new Response('Not found', { status: 404 });
+}
+
+const announcement = await getAnnouncement(Astro.locals.runtime.env, id);
+if (!announcement) {
+  return new Response('Not found', { status: 404 });
+}
+---
+
+<AdminLayout title={`Edit · ${announcement.title}`} active="announcements">
+  <p class="crumb"><a href="/admin/announcements">← Announcements</a></p>
+  <div class="head-row">
+    <h1>Edit announcement <span class="muted">#{announcement.id}</span></h1>
+    <button type="button" class="delete-btn" id="delete-btn" data-id={announcement.id}>Delete</button>
+  </div>
+
+  <AnnouncementForm announcement={announcement} />
+</AdminLayout>
+
+<script>
+  const btn = document.getElementById('delete-btn') as HTMLButtonElement | null;
+  if (btn) {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this announcement? This also removes its cover image. This cannot be undone.')) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/api/admin/announcements/${btn.dataset.id}`, { method: 'DELETE' });
+        if (res.ok) {
+          window.location.href = '/admin/announcements';
+        } else {
+          const out = (await res.json().catch(() => ({}))) as { error?: string };
+          alert(out.error ?? `Delete failed (${res.status})`);
+          btn.disabled = false;
+        }
+      } catch {
+        alert('Network error — please try again.');
+        btn.disabled = false;
+      }
+    });
+  }
+</script>
+
+<style>
+  .crumb { font-size: 0.85rem; margin: 0 0 0.5rem; }
+  .head-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .delete-btn {
+    background: #2a1417; color: #ffb4b4; border: 1px solid #5a2530;
+    border-radius: 7px; padding: 0.45rem 0.9rem; font: inherit; font-size: 0.85rem; cursor: pointer;
+  }
+  .delete-btn:disabled { opacity: 0.55; cursor: default; }
+</style>

@@ -1,0 +1,78 @@
+---
+// Admin announcements table (spec §5.8/§8, PLAN P2-5). Lists ALL announcements
+// (drafts too), newest-edited first. SSR; Access-gated. Bindings via
+// Astro.locals.runtime.env (AGENTS.md §2).
+export const prerender = false;
+
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getAdminAnnouncements } from '../../../lib/announcements';
+import { formatDateTime } from '../../../lib/format';
+import { imageUrl } from '../../../lib/images';
+
+const rows = await getAdminAnnouncements(Astro.locals.runtime.env);
+---
+
+<AdminLayout title="Announcements" active="announcements">
+  <div class="page-head">
+    <div class="title-wrap"><h1>Announcements</h1><span class="count">{rows.length}</span></div>
+    <div class="actions">
+      <a class="btn btn-primary" href="/admin/announcements/new"><svg class="ic"><use href="#i-plus" /></svg> New announcement</a>
+    </div>
+  </div>
+
+  {rows.length === 0 ? (
+    <div class="panel">
+      <div class="empty-state">
+        <span class="ico"><svg class="ic"><use href="#i-megaphone" /></svg></span>
+        <p>No announcements yet.</p>
+        <a class="btn btn-primary" href="/admin/announcements/new"><svg class="ic"><use href="#i-plus" /></svg> Create an announcement</a>
+      </div>
+    </div>
+  ) : (
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th></th><th>Title</th><th>Author</th><th>Visibility</th><th>Published</th><th>Updated</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((a) => (
+            <tr>
+              <td class="thumb-cell">
+                {a.coverImageR2Key ? (
+                  <img src={imageUrl(a.coverImageR2Key, 'thumb')} alt="" width="64" height="48" loading="lazy" />
+                ) : (
+                  <span class="no-thumb"><svg class="ic"><use href="#i-image" /></svg></span>
+                )}
+              </td>
+              <td>
+                <a href={`/admin/announcements/${a.id}`}>{a.title}</a>
+                {a.excerpt && <div class="muted small">{a.excerpt.slice(0, 90)}</div>}
+              </td>
+              <td class="small">{a.author ?? '—'}</td>
+              <td>
+                {a.isPublished ? (
+                  <span class="badge badge-success">Published</span>
+                ) : (
+                  <span class="badge badge-warning">Draft</span>
+                )}
+              </td>
+              <td class="muted small">{a.publishedAt ? formatDateTime(a.publishedAt) : '—'}</td>
+              <td class="muted small">
+                {a.isPublished && a.publishedAt ? (
+                  <a href={`/announcements/${a.slug}`} target="_blank" rel="noopener" class="ext-link">{formatDateTime(a.updatedAt)} <svg class="ic ext"><use href="#i-external" /></svg></a>
+                ) : (
+                  formatDateTime(a.updatedAt)
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</AdminLayout>
+
+<style>
+  .ext-link { display: inline-flex; align-items: center; gap: 0.3rem; }
+  .ic.ext { width: 13px; height: 13px; opacity: 0.7; }
+</style>

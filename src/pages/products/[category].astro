@@ -1,0 +1,221 @@
+---
+// Category listing page (spec §5.2, PLAN P1-3). SSR; filters + pagination are
+// driven entirely by URL query params. Only published listings of the matched
+// category are shown. Unknown category slug → 404.
+export const prerender = false;
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import FilterPanel from '../../components/FilterPanel.astro';
+import ListingCard from '../../components/ListingCard.astro';
+import { CATEGORY_BY_SLUG, type CategorySlug } from '../../db/enums';
+import {
+  getCategoryListings,
+  getFilterOptions,
+  hasActiveFilters,
+  parseFilters,
+} from '../../lib/listings';
+import { setPublicCache } from '../../lib/cache';
+
+const slug = Astro.params.category as string;
+const category = CATEGORY_BY_SLUG[slug as CategorySlug];
+if (!category) return Astro.rewrite('/404');
+setPublicCache(Astro.response); // anonymous, identical for all visitors (P3-3)
+
+const CATEGORY_TITLE: Record<string, string> = {
+  used_car: 'Used cars',
+  used_truck: 'Used trucks',
+  used_heavy_equipment: 'Used heavy equipment',
+};
+const heading = CATEGORY_TITLE[category];
+const base = `/products/${slug}`;
+
+const env = Astro.locals.runtime.env;
+const filters = parseFilters(Astro.url.searchParams);
+const [result, options] = await Promise.all([
+  getCategoryListings(env, category, filters),
+  getFilterOptions(env, category),
+]);
+
+const { rows, total, page, pageCount } = result;
+const start = total === 0 ? 0 : (page - 1) * result.pageSize + 1;
+const end = Math.min(page * result.pageSize, total);
+const filtersActive = hasActiveFilters(filters);
+
+// Pagination links preserve the active filters and only vary `page`.
+function pageHref(n: number): string {
+  const params = new URLSearchParams(Astro.url.search);
+  if (n <= 1) params.delete('page');
+  else params.set('page', String(n));
+  const q = params.toString();
+  return q ? `${base}?${q}` : base;
+}
+const pages = Array.from({ length: pageCount }, (_, i) => i + 1);
+---
+
+<BaseLayout
+  title={heading}
+  description={`Browse our ${heading.toLowerCase()} for sale — quality, inspected units from Togomoto Industries.`}
+>
+  <div class="container page">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">/</span>
+      <span>Products</span> <span aria-hidden="true">/</span>
+      <span class="current">{heading}</span>
+    </nav>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <FilterPanel action={base} filters={filters} options={options} />
+      </aside>
+
+      <section class="results" aria-label={heading}>
+        <header class="results-head">
+          <h1>{heading}</h1>
+          <p class="count">
+            {total === 0 ? 'No results' : `Showing ${start}–${end} of ${total} result${total === 1 ? '' : 's'}`}
+          </p>
+        </header>
+
+        {
+          rows.length === 0 ? (
+            <div class="empty">
+              <p>No listings match your filters.</p>
+              {filtersActive && <a class="reset-link" href={base}>Clear filters</a>}
+            </div>
+          ) : (
+            <div class="card-grid">
+              {rows.map((r, i) => (
+                <ListingCard listing={r.listing} image={r.image} eager={i < 3} />
+              ))}
+            </div>
+          )
+        }
+
+        {
+          pageCount > 1 && (
+            <nav class="pagination" aria-label="Pagination">
+              <a class="page-btn" href={pageHref(page - 1)} aria-disabled={page <= 1} tabindex={page <= 1 ? -1 : undefined}>
+                Prev
+              </a>
+              {pages.map((n) => (
+                <a class="page-btn" href={pageHref(n)} aria-current={n === page ? 'page' : undefined}>
+                  {n}
+                </a>
+              ))}
+              <a class="page-btn" href={pageHref(page + 1)} aria-disabled={page >= pageCount} tabindex={page >= pageCount ? -1 : undefined}>
+                Next
+              </a>
+            </nav>
+          )
+        }
+      </section>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .page {
+    padding-block: var(--space-5) var(--space-7);
+  }
+  .crumbs {
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    margin-bottom: var(--space-5);
+  }
+  .crumbs a {
+    color: var(--color-muted);
+  }
+  .crumbs a:hover {
+    color: var(--color-primary);
+  }
+  .crumbs .current {
+    color: var(--color-text);
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: var(--space-6);
+    align-items: start;
+  }
+
+  .results-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-5);
+  }
+  .results-head h1 {
+    margin: 0;
+  }
+  .count {
+    margin: 0;
+    color: var(--color-muted);
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-5);
+  }
+
+  .empty {
+    padding: var(--space-8) var(--space-5);
+    text-align: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    color: var(--color-muted);
+  }
+  .reset-link {
+    display: inline-block;
+    margin-top: var(--space-3);
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  .pagination {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-6);
+  }
+  .page-btn {
+    min-width: 40px;
+    padding: var(--space-2) var(--space-3);
+    text-align: center;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    font-weight: 600;
+  }
+  .page-btn:hover {
+    text-decoration: none;
+    border-color: var(--color-primary);
+  }
+  .page-btn[aria-current='page'] {
+    background: var(--color-primary);
+    color: var(--color-primary-ink);
+    border-color: var(--color-primary);
+  }
+  .page-btn[aria-disabled='true'] {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  @media (max-width: 900px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+    .card-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 560px) {
+    .card-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

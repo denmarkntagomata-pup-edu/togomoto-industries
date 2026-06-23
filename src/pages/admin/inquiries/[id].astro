@@ -1,0 +1,159 @@
+---
+// Admin inquiry detail (spec §8.4, PLAN P1-7). Shows all captured fields, the
+// linked unit when present, and a status control. SSR; Access-gated. 404 on
+// unknown/invalid id.
+export const prerender = false;
+
+import { eq } from 'drizzle-orm';
+import { getDb } from '../../../db';
+import { inquiries, listings } from '../../../db/schema';
+import { INQUIRY_STATUSES } from '../../../db/enums';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatDateTime, formatPrice, labelForEnum } from '../../../lib/format';
+
+const id = Number(Astro.params.id);
+if (!Number.isInteger(id) || id <= 0) {
+  return new Response('Not found', { status: 404 });
+}
+
+const db = getDb(Astro.locals.runtime.env);
+const found = await db
+  .select({
+    id: inquiries.id,
+    source: inquiries.source,
+    status: inquiries.status,
+    name: inquiries.name,
+    email: inquiries.email,
+    contactNumber: inquiries.contactNumber,
+    company: inquiries.company,
+    message: inquiries.message,
+    userAgent: inquiries.userAgent,
+    listingId: inquiries.listingId,
+    createdAt: inquiries.createdAt,
+    listingTitle: listings.title,
+    listingPrice: listings.price,
+    listingPoa: listings.priceOnApplication,
+  })
+  .from(inquiries)
+  .leftJoin(listings, eq(inquiries.listingId, listings.id))
+  .where(eq(inquiries.id, id))
+  .limit(1);
+
+const inq = found[0];
+if (!inq) {
+  return new Response('Not found', { status: 404 });
+}
+---
+
+<AdminLayout title={`Inquiry #${inq.id}`} active="inquiries">
+  <p class="crumb"><a href="/admin/inquiries"><svg class="ic"><use href="#i-arrow-left" /></svg> Back to inbox</a></p>
+
+  <div class="detail-head">
+    <div class="title-wrap">
+      <h1>{inq.name}</h1>
+      <span class="badge badge-status dot" data-status={inq.status}>{labelForEnum(inq.status)}</span>
+    </div>
+    <div class="status-control">
+      <label class="sr-only" for="status">Status</label>
+      <select id="status" class="status-select" data-id={inq.id}>
+        {INQUIRY_STATUSES.map((s) => (
+          <option value={s} selected={s === inq.status}>{labelForEnum(s)}</option>
+        ))}
+      </select>
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <section class="panel">
+      <h2 class="section-title">Contact</h2>
+      <dl class="fields">
+        <dt>Email</dt>
+        <dd><a class="btn btn-secondary btn-sm" href={`mailto:${inq.email}`}><svg class="ic"><use href="#i-mail" /></svg> {inq.email}</a></dd>
+        <dt>Contact number</dt><dd>{inq.contactNumber}</dd>
+        <dt>Company</dt><dd>{inq.company ?? '—'}</dd>
+        <dt>Source</dt><dd><span class="badge">{labelForEnum(inq.source)}</span></dd>
+        <dt>Received</dt><dd>{formatDateTime(inq.createdAt)}</dd>
+        <dt>Linked unit</dt>
+        <dd>
+          {inq.listingId && inq.listingTitle
+            ? `${inq.listingTitle} — ${formatPrice(inq.listingPrice, inq.listingPoa ?? false)}`
+            : '—'}
+        </dd>
+      </dl>
+    </section>
+
+    <section class="panel">
+      <h2 class="section-title">Message</h2>
+      <p class="message">{inq.message}</p>
+      {inq.userAgent && (
+        <p class="ua muted small"><span class="faint">User agent:</span> {inq.userAgent}</p>
+      )}
+    </section>
+  </div>
+</AdminLayout>
+
+<script>
+  // Same minimal PATCH-on-change as the board (server is authoritative).
+  document.addEventListener('change', async (e) => {
+    const el = e.target as HTMLElement;
+    if (!(el instanceof HTMLSelectElement) || !el.classList.contains('status-select')) return;
+    const id = el.dataset.id;
+    if (!id) return;
+    el.disabled = true;
+    try {
+      const res = await fetch(`/api/admin/inquiries/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: el.value }),
+      });
+      if (!res.ok) throw new Error(`PATCH failed: ${res.status}`);
+      location.reload();
+    } catch (err) {
+      el.disabled = false;
+      alert('Could not update status. Please try again.');
+      console.error(err);
+    }
+  });
+</script>
+
+<style>
+  .detail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    flex-wrap: wrap;
+    margin-bottom: var(--sp-5);
+  }
+  .detail-head .title-wrap { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: var(--sp-4);
+    align-items: start;
+  }
+  .fields {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.6rem 1.25rem;
+    margin: 0;
+  }
+  .fields dt { color: var(--muted); font-size: 0.85rem; align-self: center; }
+  .fields dd { margin: 0; min-width: 0; word-break: break-word; }
+  .message {
+    margin: 0;
+    white-space: pre-wrap;
+    line-height: 1.55;
+  }
+  .ua {
+    margin: var(--sp-4) 0 0;
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--border);
+    word-break: break-all;
+  }
+
+  @media (max-width: 760px) {
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+</style>

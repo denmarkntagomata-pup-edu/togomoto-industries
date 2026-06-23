@@ -1,0 +1,208 @@
+---
+// Recent-arrivals carousel (spec §5.1b/c). A horizontal scroll-snap row of
+// ListingCards for one category on the home page. Pure CSS scroll-snap (no JS):
+// keyboard/trackpad/touch scrollable, respects reduced-motion via the global
+// scroll-behavior rule. Cards carry the "Recent arrival" tag. Hidden entirely by
+// the caller when there are no rows.
+import ListingCard from './ListingCard.astro';
+import type { ListingCardRow } from '../lib/listings';
+
+interface Props {
+  title: string;
+  rows: ListingCardRow[];
+  /** "View all" link target for this category. */
+  href: string;
+  /** First card eager-loads (above the fold) when true. */
+  eager?: boolean;
+}
+
+const { title, rows, href, eager = false } = Astro.props;
+---
+
+{
+  rows.length > 0 && (
+    <section class="arrivals" aria-label={title}>
+      <div class="container">
+        <header class="arrivals-head">
+          <h2 class="section-title">{title}</h2>
+          <div class="arrivals-controls">
+            <button type="button" class="arrow" data-dir="-1" aria-label="Scroll left">
+              <span aria-hidden="true">‹</span>
+            </button>
+            <button type="button" class="arrow" data-dir="1" aria-label="Scroll right">
+              <span aria-hidden="true">›</span>
+            </button>
+            <a class="view-all" href={href}>
+              View all <span aria-hidden="true">→</span>
+            </a>
+          </div>
+        </header>
+      </div>
+
+      <div class="scroller-wrap">
+        <div class="container">
+          <ul class="scroller" role="list">
+            {rows.map((r, i) => (
+              <li class="slide">
+                <ListingCard
+                  listing={r.listing}
+                  image={r.image}
+                  recentArrival
+                  eager={eager && i < 2}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+<style>
+  .arrivals {
+    padding-block: var(--space-6);
+  }
+  .arrivals-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-5);
+  }
+  /* Section title with an amber underline accent (matches the home sections). */
+  .section-title {
+    position: relative;
+    margin: 0;
+    padding-bottom: var(--space-3);
+  }
+  .section-title::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 64px;
+    height: 3px;
+    border-radius: var(--radius-pill);
+    background: var(--color-primary);
+  }
+
+  .arrivals-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .arrow {
+    display: inline-grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--text-xl);
+    line-height: 1;
+    cursor: pointer;
+    transition:
+      border-color 0.15s ease,
+      opacity 0.15s ease;
+  }
+  .arrow:hover {
+    border-color: var(--color-primary);
+  }
+  .arrow:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .view-all {
+    color: var(--color-primary);
+    font-weight: 600;
+    font-size: var(--text-sm);
+    white-space: nowrap;
+  }
+  .view-all:hover {
+    text-decoration: none;
+    filter: brightness(1.1);
+  }
+
+  /* Touch devices scroll natively — hide the arrow controls there. */
+  @media (hover: none) {
+    .arrow {
+      display: none;
+    }
+  }
+
+  /* Let the row bleed to the viewport edge while staying aligned to the
+     container's left padding, so cards can scroll past the right margin. */
+  .scroller {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 var(--space-3);
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(260px, 300px);
+    gap: var(--space-5);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+  .slide {
+    scroll-snap-align: start;
+    display: flex;
+  }
+  .slide > :global(.card) {
+    width: 100%;
+  }
+
+  .scroller::-webkit-scrollbar {
+    height: 8px;
+  }
+  .scroller::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: var(--radius-pill);
+  }
+
+  @media (max-width: 560px) {
+    .scroller {
+      grid-auto-columns: minmax(220px, 78%);
+    }
+  }
+</style>
+
+<script>
+  // Wire each carousel's prev/next buttons to scroll its own scroll-snap row by
+  // roughly one card. Native scroll/touch still works; buttons are progressive
+  // enhancement and disable at the ends. Multiple instances per page are safe.
+  document.querySelectorAll<HTMLElement>('.arrivals').forEach((section) => {
+    const scroller = section.querySelector<HTMLElement>('.scroller');
+    const buttons = section.querySelectorAll<HTMLButtonElement>('.arrow');
+    if (!scroller || buttons.length === 0) return;
+
+    const step = () => {
+      const first = scroller.querySelector<HTMLElement>('.slide');
+      const gap = parseFloat(getComputedStyle(scroller).columnGap || '0') || 0;
+      return (first?.getBoundingClientRect().width ?? 280) + gap;
+    };
+
+    const sync = () => {
+      const max = scroller.scrollWidth - scroller.clientWidth - 1;
+      buttons.forEach((b) => {
+        const dir = Number(b.dataset.dir);
+        b.disabled = dir < 0 ? scroller.scrollLeft <= 0 : scroller.scrollLeft >= max;
+      });
+    };
+
+    buttons.forEach((b) =>
+      b.addEventListener('click', () => {
+        scroller.scrollBy({ left: Number(b.dataset.dir) * step(), behavior: 'smooth' });
+      }),
+    );
+    scroller.addEventListener('scroll', sync, { passive: true });
+    window.addEventListener('resize', sync);
+    sync();
+  });
+</script>

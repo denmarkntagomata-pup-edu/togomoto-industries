@@ -1,0 +1,58 @@
+---
+// Shared dealership address block (spec §5.10). Togomoto operates its PH yard from
+// ONE location (Togomoto Trucks, its retail arm, shares it); the address is static content, NOT
+// admin-editable. Presented alongside contact forms (home, contact) and in the
+// footer. Single source of truth so it never drifts across pages — update the
+// values here only. Mirrored as JSON-LD in src/lib/jsonld.ts (keep them in sync).
+interface Props {
+  /** Render without the heading (e.g. inside the footer column). */
+  heading?: string | null;
+}
+const { heading = 'Visit us' } = Astro.props;
+---
+
+<div class="address-block">
+  {heading && <h2 class="address-heading">{heading}</h2>}
+  <address>
+    <strong>Togomoto Industries</strong><br />
+    100 Demo Avenue, Sample District<br />
+    Metro City, Demo Province 1000<br />
+    Philippines<br />
+    <a href="tel:+15550101234">(555) 010-1234</a><br />
+    <a href="tel:+15550105678">+1 555 010 5678</a><br />
+    <a href="mailto:hello@togomoto-industries.example.com">hello@togomoto-industries.example.com</a><br />
+    <a href="#" rel="noopener">Get directions</a>
+    <span class="hours">Mon–Sat 9:00 AM – 6:00 PM · Sun closed</span>
+  </address>
+</div>
+
+<style>
+  .address-heading {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-primary);
+    margin: 0 0 var(--space-4);
+  }
+  address {
+    font-style: normal;
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    line-height: 1.8;
+  }
+  address strong {
+    color: var(--color-text);
+  }
+  address a {
+    color: var(--color-muted);
+  }
+  address a:hover {
+    color: var(--color-text);
+  }
+  address .hours {
+    display: block;
+    margin-top: var(--space-2);
+    color: var(--color-muted);
+  }
+</style>

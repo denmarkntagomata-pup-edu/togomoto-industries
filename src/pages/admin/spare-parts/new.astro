@@ -1,0 +1,15 @@
+---
+// Create a new spare part (spec §8.7, PLAN P2-4). Multipart form (carries the
+// optional image). On success the form redirects to /admin/spare-parts. SSR;
+// Access-gated.
+export const prerender = false;
+
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import SparePartForm from '../../../components/admin/SparePartForm.astro';
+---
+
+<AdminLayout title="New spare part" active="spare-parts">
+  <p class="crumb"><a href="/admin/spare-parts"><svg class="ic"><use href="#i-arrow-left" /></svg> Spare parts</a></p>
+  <div class="page-head"><div class="title-wrap"><h1>New spare part</h1></div></div>
+  <SparePartForm />
+</AdminLayout>

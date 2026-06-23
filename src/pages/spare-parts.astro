@@ -1,0 +1,228 @@
+---
+// Spare parts (spec §5.6, PLAN P2-4). SSR — renders the published spare_parts
+// records (is_published = 1) in sort_order. Each entry shows name, optional
+// category grouping, optional image, optional price (only when set), and
+// description (escaped text). Closes with the standard inquiry form
+// (source=contact). Reuses formatPrice + imageUrl.
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import InquiryForm from '../components/InquiryForm.astro';
+import { getPublishedSpareParts } from '../lib/spare-parts';
+import { formatPrice } from '../lib/format';
+import { imageUrl, IMAGE_VARIANTS } from '../lib/images';
+import { setPublicCache } from '../lib/cache';
+
+const env = Astro.locals.runtime.env;
+setPublicCache(Astro.response); // anonymous, identical for all visitors (P3-3)
+const parts = await getPublishedSpareParts(env);
+const { width, height } = IMAGE_VARIANTS.card;
+
+// Group by category in first-appearance order (already sorted by sort_order).
+// Parts without a category collect into a trailing, unlabelled group.
+const UNGROUPED = '__ungrouped__';
+const groups = new Map<string, typeof parts>();
+for (const part of parts) {
+  const key = part.category?.trim() || UNGROUPED;
+  if (!groups.has(key)) groups.set(key, []);
+  groups.get(key)!.push(part);
+}
+const groupList = [...groups.entries()];
+---
+
+<BaseLayout
+  title="Spare parts"
+  description="Genuine and surplus spare parts for trucks, cars and heavy equipment — available from Togomoto Industries."
+>
+  <div class="container page">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a> <span aria-hidden="true">/</span>
+      <span class="current">Spare parts</span>
+    </nav>
+
+    <header class="intro">
+      <h1>Spare parts</h1>
+      <p class="lede">
+        Keep your fleet running. We carry genuine and surplus parts for trucks, cars
+        and heavy equipment — message us with the part you need and we'll confirm
+        availability.
+      </p>
+    </header>
+
+    {
+      parts.length === 0 ? (
+        <div class="empty">
+          <p>No spare parts are listed right now. Message us below and we'll help you source what you need.</p>
+        </div>
+      ) : (
+        groupList.map(([key, items]) => (
+          <section class="group" aria-label={key === UNGROUPED ? 'Other parts' : key}>
+            {key !== UNGROUPED && <h2 class="group-title">{key}</h2>}
+            <ul class="parts-grid" role="list">
+              {items.map((part) => (
+                <li class="part-card">
+                  <div class="part-media">
+                    {part.imageR2Key ? (
+                      <img
+                        src={imageUrl(part.imageR2Key, 'card')}
+                        width={width}
+                        height={height}
+                        alt={part.name}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <div class="part-placeholder" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5">
+                          <circle cx="12" cy="12" r="3" />
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  <div class="part-body">
+                    <h3 class="part-name">{part.name}</h3>
+                    {part.price != null && <p class="part-price">{formatPrice(part.price)}</p>}
+                    {part.description && <p class="part-desc">{part.description}</p>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))
+      )
+    }
+
+    <section class="connect" id="connect" aria-label="Connect and talk to us">
+      <h2>Looking for a specific part?</h2>
+      <p class="connect-lede">Tell us the make, model and the part you need — we'll confirm availability and pricing.</p>
+      <InquiryForm source="contact" submitLabel="Send parts inquiry" />
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .page {
+    padding-block: var(--space-5) var(--space-7);
+  }
+  .crumbs {
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    margin-bottom: var(--space-5);
+  }
+  .crumbs a {
+    color: var(--color-muted);
+  }
+  .crumbs a:hover {
+    color: var(--color-primary);
+  }
+  .crumbs .current {
+    color: var(--color-text);
+  }
+
+  .intro {
+    max-width: 70ch;
+    margin-bottom: var(--space-7);
+  }
+  .lede {
+    color: var(--color-muted);
+    font-size: var(--text-lg);
+  }
+
+  .empty {
+    padding: var(--space-8) var(--space-5);
+    text-align: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    color: var(--color-muted);
+  }
+
+  .group {
+    margin-bottom: var(--space-7);
+  }
+  .group-title {
+    font-size: var(--text-xl);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: var(--space-5);
+  }
+
+  .parts-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-5);
+  }
+  .part-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .part-media {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background: var(--color-surface-2);
+  }
+  .part-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .part-placeholder {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--color-muted);
+  }
+  .part-body {
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .part-name {
+    margin: 0;
+    font-size: var(--text-lg);
+  }
+  .part-price {
+    margin: 0;
+    color: var(--color-primary);
+    font-weight: 700;
+  }
+  .part-desc {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    white-space: pre-line;
+  }
+
+  .connect {
+    max-width: 820px;
+    margin-top: var(--space-7);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+    scroll-margin-top: var(--nav-h);
+  }
+  .connect-lede {
+    color: var(--color-muted);
+    max-width: 60ch;
+  }
+
+  @media (max-width: 900px) {
+    .parts-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 560px) {
+    .parts-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

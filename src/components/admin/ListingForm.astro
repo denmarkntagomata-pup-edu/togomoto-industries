@@ -1,0 +1,331 @@
+---
+// Shared create/edit form for admin listings (spec §8.2, PLAN P1-8). Renders all
+// core columns + the price-on-application toggle + a structured-specs key/value
+// grid (§4.7, preferred over a raw JSON textarea) + publish/featured toggles.
+// Submits via a JSON fetch (POST on create, PATCH on edit) — client validation
+// is UX only; the server (Zod) is authoritative. Lives inside AdminLayout, so it
+// inherits the admin dark palette (deliberately separate from tokens.css).
+import type { Listing } from '../../db/schema';
+import {
+  CATEGORIES,
+  CONDITIONS,
+  FUEL_TYPES,
+  SALE_STATUSES,
+  TRANSMISSION_TYPES,
+} from '../../db/enums';
+import { labelForEnum } from '../../lib/format';
+
+interface Props {
+  listing?: Listing;
+}
+const { listing } = Astro.props;
+const mode: 'create' | 'edit' = listing ? 'edit' : 'create';
+
+// Structured spec keys in their §4.7 display order, with humanised labels.
+const SPEC_FIELDS: { key: string; label: string }[] = [
+  { key: 'net_weight', label: 'Net weight' },
+  { key: 'gross_weight', label: 'Gross weight' },
+  { key: 'payload', label: 'Payload' },
+  { key: 'engine', label: 'Engine' },
+  { key: 'top_speed', label: 'Top speed' },
+  { key: 'acceleration_0_62', label: 'Acceleration 0–62' },
+  { key: 'drive_type', label: 'Drive type' },
+  { key: 'gearbox', label: 'Gearbox' },
+  { key: 'dimensions', label: 'Dimensions' },
+  { key: 'weight', label: 'Weight' },
+];
+
+// Prefill helper for a spec value (dimensions may be a string OR an object).
+const specs = (listing?.specs ?? {}) as Record<string, unknown>;
+function specValue(key: string): string {
+  const v = specs[key];
+  if (v == null) return '';
+  if (typeof v === 'object') {
+    const d = v as { length?: unknown; width?: unknown; height?: unknown };
+    return [d.length, d.width, d.height].filter((x) => x != null).join(' × ');
+  }
+  return String(v);
+}
+
+const v = {
+  category: listing?.category ?? '',
+  title: listing?.title ?? '',
+  slug: listing?.slug ?? '',
+  referenceNumber: listing?.referenceNumber ?? '',
+  maker: listing?.maker ?? '',
+  model: listing?.model ?? '',
+  body: listing?.body ?? '',
+  yearOfManufacture: listing?.yearOfManufacture ?? '',
+  mileage: listing?.mileage ?? '',
+  color: listing?.color ?? '',
+  location: listing?.location ?? '',
+  condition: listing?.condition ?? '',
+  transmissionType: listing?.transmissionType ?? '',
+  fuelType: listing?.fuelType ?? '',
+  status: listing?.status ?? 'available',
+  price: listing?.price ?? '',
+  description: listing?.description ?? '',
+};
+---
+
+<form
+  id="listing-form"
+  data-mode={mode}
+  data-id={listing ? String(listing.id) : ''}
+  novalidate
+>
+  <p class="status-message" id="form-status" role="status" aria-live="polite" hidden></p>
+
+  <fieldset class="form-section">
+    <legend>Core details</legend>
+    <div class="form-grid">
+      <label class="field">
+        <span>Category <em>*</em></span>
+        <select name="category" required>
+          <option value="" disabled selected={!v.category}>Select…</option>
+          {CATEGORIES.map((c) => (
+            <option value={c} selected={c === v.category}>{labelForEnum(c)}</option>
+          ))}
+        </select>
+        <small class="err" data-err="category"></small>
+      </label>
+
+      <label class="field">
+        <span>Sale status <em>*</em></span>
+        <select name="status" required>
+          {SALE_STATUSES.map((s) => (
+            <option value={s} selected={s === v.status}>{labelForEnum(s)}</option>
+          ))}
+        </select>
+        <small class="err" data-err="status"></small>
+      </label>
+
+      <label class="field span-2">
+        <span>Title <em>*</em></span>
+        <input type="text" name="title" value={v.title} maxlength="200" required />
+        <small class="err" data-err="title"></small>
+      </label>
+
+      {mode === 'edit' && (
+        <label class="field span-2">
+          <span>Slug</span>
+          <input type="text" name="slug" value={v.slug} maxlength="200" />
+          <small class="hint">Auto-deduplicated. Changing it changes the public URL.</small>
+          <small class="err" data-err="slug"></small>
+        </label>
+      )}
+
+      <label class="field">
+        <span>Reference number</span>
+        <input type="text" name="referenceNumber" value={v.referenceNumber} maxlength="120" />
+      </label>
+      <label class="field">
+        <span>Maker</span>
+        <input type="text" name="maker" value={v.maker} maxlength="120" />
+      </label>
+      <label class="field">
+        <span>Model</span>
+        <input type="text" name="model" value={v.model} maxlength="120" />
+      </label>
+      <label class="field">
+        <span>Body / unit type</span>
+        <input type="text" name="body" value={v.body} maxlength="120" />
+      </label>
+      <label class="field">
+        <span>Year of manufacture</span>
+        <input type="number" name="yearOfManufacture" value={v.yearOfManufacture} min="1900" max="2100" />
+        <small class="err" data-err="yearOfManufacture"></small>
+      </label>
+      <label class="field">
+        <span>Mileage (km)</span>
+        <input type="number" name="mileage" value={v.mileage} min="0" />
+        <small class="err" data-err="mileage"></small>
+      </label>
+      <label class="field">
+        <span>Colour</span>
+        <input type="text" name="color" value={v.color} maxlength="80" />
+      </label>
+      <label class="field">
+        <span>Location</span>
+        <input type="text" name="location" value={v.location} maxlength="120" />
+      </label>
+
+      <label class="field">
+        <span>Condition</span>
+        <select name="condition">
+          <option value="" selected={!v.condition}>—</option>
+          {CONDITIONS.map((c) => (
+            <option value={c} selected={c === v.condition}>{labelForEnum(c)}</option>
+          ))}
+        </select>
+      </label>
+      <label class="field">
+        <span>Transmission</span>
+        <select name="transmissionType">
+          <option value="" selected={!v.transmissionType}>—</option>
+          {TRANSMISSION_TYPES.map((t) => (
+            <option value={t} selected={t === v.transmissionType}>{labelForEnum(t)}</option>
+          ))}
+        </select>
+      </label>
+      <label class="field">
+        <span>Fuel</span>
+        <select name="fuelType">
+          <option value="" selected={!v.fuelType}>—</option>
+          {FUEL_TYPES.map((f) => (
+            <option value={f} selected={f === v.fuelType}>{labelForEnum(f)}</option>
+          ))}
+        </select>
+      </label>
+
+      <label class="field span-2">
+        <span>Description</span>
+        <textarea name="description" rows="5" maxlength="10000">{v.description}</textarea>
+        <small class="hint">Free text; rendered as escaped paragraphs on the detail page.</small>
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>Pricing</legend>
+    <div class="form-grid">
+      <label class="field">
+        <span>Price (₱)</span>
+        <input type="number" name="price" value={v.price} min="0" step="1" />
+        <small class="err" data-err="price"></small>
+      </label>
+      <label class="field check">
+        <input type="checkbox" name="priceOnApplication" checked={listing?.priceOnApplication ?? false} />
+        <span>Price on application (show “Inquire for price”)</span>
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>Structured specs <span class="muted">(optional; blanks are omitted)</span></legend>
+    <div class="form-grid">
+      {SPEC_FIELDS.map((f) => (
+        <label class="field">
+          <span>{f.label}</span>
+          <input type="text" name={`specs.${f.key}`} value={specValue(f.key)} maxlength="200" />
+        </label>
+      ))}
+    </div>
+  </fieldset>
+
+  <fieldset class="form-section">
+    <legend>Visibility</legend>
+    <div class="toggles">
+      <label class="field check">
+        <input type="checkbox" name="isPublished" checked={listing?.isPublished ?? false} />
+        <span>Published (visible on the public site)</span>
+      </label>
+      <label class="field check">
+        <input type="checkbox" name="isFeatured" checked={listing?.isFeatured ?? false} />
+        <span>Featured (sorts first in its category)</span>
+      </label>
+    </div>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">{mode === 'create' ? 'Create listing' : 'Save changes'}</button>
+    <a class="cancel" href="/admin/listings">Cancel</a>
+  </div>
+</form>
+
+<script>
+  const form = document.getElementById('listing-form') as HTMLFormElement | null;
+  if (form) {
+    const mode = form.dataset.mode;
+    const id = form.dataset.id;
+    const statusEl = document.getElementById('form-status')!;
+    const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+
+    const clearErrors = () => {
+      form.querySelectorAll<HTMLElement>('.err').forEach((el) => (el.textContent = ''));
+    };
+    const showStatus = (msg: string, kind: 'error' | 'ok') => {
+      statusEl.textContent = msg;
+      statusEl.dataset.kind = kind;
+      statusEl.hidden = false;
+    };
+
+    // Build the JSON payload from the form (checkboxes -> booleans, specs.* ->
+    // nested object). Empty strings are sent as-is; the server maps them to null
+    // for nullable columns and drops them from specs.
+    const serialize = () => {
+      const data: Record<string, unknown> = { specs: {} };
+      const specs = data.specs as Record<string, unknown>;
+      for (const el of Array.from(form.elements) as HTMLElement[]) {
+        const input = el as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+        if (!input.name) continue;
+        if (input instanceof HTMLInputElement && input.type === 'checkbox') {
+          data[input.name] = input.checked;
+        } else if (input.name.startsWith('specs.')) {
+          specs[input.name.slice('specs.'.length)] = input.value;
+        } else {
+          data[input.name] = input.value;
+        }
+      }
+      return data;
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearErrors();
+      statusEl.hidden = true;
+      submitBtn.disabled = true;
+
+      const url = mode === 'create' ? '/api/admin/listings' : `/api/admin/listings/${id}`;
+      const method = mode === 'create' ? 'POST' : 'PATCH';
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(serialize()),
+        });
+        const out = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          listing?: { id: number };
+          error?: string;
+          fields?: Record<string, string[]>;
+        };
+
+        if (!res.ok) {
+          if (out.fields) {
+            for (const [name, msgs] of Object.entries(out.fields)) {
+              const target = form.querySelector<HTMLElement>(`.err[data-err="${name}"]`);
+              if (target) target.textContent = msgs.join(', ');
+            }
+          }
+          showStatus(out.error ?? `Request failed (${res.status})`, 'error');
+          submitBtn.disabled = false;
+          return;
+        }
+
+        if (mode === 'create' && out.listing) {
+          // Created — go to the edit page so images can be attached.
+          window.location.href = `/admin/listings/${out.listing.id}`;
+        } else {
+          showStatus('Saved.', 'ok');
+          submitBtn.disabled = false;
+        }
+      } catch (err) {
+        showStatus('Network error — please try again.', 'error');
+        submitBtn.disabled = false;
+        console.error(err);
+      }
+    });
+  }
+</script>
+
+<style>
+  /* Form primitives (.form-grid, .field, .status-message, fieldset.form-section,
+     .form-actions) come from admin.css. Page-specific tweaks only below. */
+  .toggles { display: flex; flex-direction: column; gap: 0.7rem; }
+
+  @media (max-width: 720px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .field.span-2 { grid-column: auto; }
+  }
+</style>

@@ -1,0 +1,193 @@
+---
+// Public site shell (PLAN P1-1). Every public page extends this. Provides the
+// <head> SEO slots, global token-driven styling, and the nav + footer chrome.
+// Data-driven pages set `export const prerender = false`; static pages set true.
+import '../styles/tokens.css';
+import SiteNav from '../components/SiteNav.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  /** Override the canonical URL; defaults to the current request URL. */
+  canonical?: string;
+  /** Absolute OG image URL. */
+  ogImage?: string;
+  /** Suppress indexing (e.g. thin/utility pages). */
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description = 'Direct importer of Japan-surplus used cars, trucks and heavy equipment in the Philippines — auction sourcing, vehicle shipping and spare parts from Togomoto Industries.',
+  canonical,
+  ogImage,
+  noindex = false,
+} = Astro.props;
+
+const siteName = 'Togomoto Industries';
+const fullTitle = title === siteName ? title : `${title} · ${siteName}`;
+const base = Astro.site ?? Astro.url;
+const canonicalUrl = canonical ?? new URL(Astro.url.pathname, base).href;
+// Default social-share image (neutral demo placeholder) — pages may override via `ogImage`.
+const ogImageUrl = new URL(ogImage ?? '/og.svg', base).href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/logo.svg" />
+
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    {noindex && <meta name="robots" content="noindex" />}
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={ogImageUrl} />
+
+    <!-- Fonts: Archivo (display) + Manrope (body); swap to avoid CLS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap"
+    />
+
+    <slot name="head" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <SiteNav />
+    <main id="main">
+      <slot />
+    </main>
+    <SiteFooter />
+  </body>
+</html>
+
+<style is:global>
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Global reduced-motion guard: neutralise every transition/animation (and smooth
+     scroll) site-wide for users who ask for it, so any motion added below is safe
+     by construction (P3-4). Components don't need to gate their own transitions. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  main {
+    flex: 1 0 auto;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    line-height: 1.15;
+    margin: 0 0 var(--space-4);
+    letter-spacing: -0.01em;
+  }
+
+  h1 {
+    font-size: var(--text-3xl);
+  }
+  h2 {
+    font-size: var(--text-2xl);
+  }
+  h3 {
+    font-size: var(--text-xl);
+  }
+
+  p {
+    margin: 0 0 var(--space-4);
+  }
+
+  a {
+    color: var(--color-link);
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .container {
+    width: 100%;
+    max-width: var(--maxw);
+    margin-inline: auto;
+    padding-inline: var(--space-5);
+  }
+
+  .skip-link {
+    position: absolute;
+    left: var(--space-3);
+    top: -100px;
+    z-index: 100;
+    background: var(--color-primary);
+    color: var(--color-primary-ink);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    transition: top 0.15s ease;
+  }
+  .skip-link:focus {
+    top: var(--space-3);
+    text-decoration: none;
+  }
+</style>

@@ -1,0 +1,182 @@
+---
+// Filter panel (spec §5.2, §6.2). A GET <form> whose fields reflect the current
+// URL params and submit by updating the URL (no JSON endpoint). Submitting drops
+// the page param (form has no page field) so filtering returns to page 1. On
+// small viewports it collapses behind a "Filters" toggle.
+import { labelForEnum } from '../lib/format';
+import type { ListingFilters, FilterOptions } from '../lib/listings';
+
+interface Props {
+  /** Base path for this category, e.g. /products/used-cars (form action + reset). */
+  action: string;
+  filters: ListingFilters;
+  options: FilterOptions;
+}
+
+const { action, filters, options } = Astro.props;
+
+const facets = [
+  { name: 'maker', label: 'Maker', values: options.maker, isEnum: false, value: filters.maker },
+  { name: 'model', label: 'Model', values: options.model, isEnum: false, value: filters.model },
+  { name: 'body', label: 'Body', values: options.body, isEnum: false, value: filters.body },
+  { name: 'fuel', label: 'Fuel type', values: options.fuel, isEnum: true, value: filters.fuel },
+  { name: 'location', label: 'Location', values: options.location, isEnum: false, value: filters.location },
+  { name: 'condition', label: 'Condition', values: options.condition, isEnum: true, value: filters.condition },
+  { name: 'transmission', label: 'Transmission', values: options.transmission, isEnum: true, value: filters.transmission },
+  { name: 'status', label: 'Status', values: options.status, isEnum: true, value: filters.status },
+] as const;
+---
+
+<div class="filter-wrap">
+  <button class="filter-toggle" type="button" aria-expanded="false" aria-controls="filter-panel" data-filter-toggle>
+    Filters
+  </button>
+
+  <form id="filter-panel" class="filter-panel" method="get" action={action} aria-label="Filter listings">
+    <div class="filter-head">
+      <h2>Search vehicle</h2>
+      <a class="reset" href={action}>Reset</a>
+    </div>
+
+    <label class="field">
+      <span>Search</span>
+      <input type="search" name="search" value={filters.search} placeholder="Title, maker or model" />
+    </label>
+
+    {
+      facets.map((f) => (
+        <label class="field" hidden={f.values.length === 0}>
+          <span>{f.label}</span>
+          <select name={f.name}>
+            <option value="">{`Any ${f.label.toLowerCase()}`}</option>
+            {f.values.map((v) => (
+              <option value={v} selected={f.value === v}>
+                {f.isEnum ? labelForEnum(v) : v}
+              </option>
+            ))}
+          </select>
+        </label>
+      ))
+    }
+
+    <div class="filter-actions">
+      <button type="submit" class="btn-apply">Apply filters</button>
+    </div>
+  </form>
+</div>
+
+<style>
+  .filter-wrap {
+    position: sticky;
+    top: calc(var(--nav-h) + var(--space-4));
+  }
+
+  .filter-toggle {
+    display: none;
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .filter-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  .filter-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+  .filter-head h2 {
+    margin: 0;
+    font-size: var(--text-lg);
+  }
+  .reset {
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+  }
+  .reset:hover {
+    color: var(--color-primary);
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .field > span {
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+  }
+  .field input,
+  .field select {
+    width: 100%;
+    padding: var(--space-3);
+    background: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font: inherit;
+  }
+  .field input::placeholder {
+    color: var(--color-muted);
+  }
+  .field input:focus,
+  .field select:focus {
+    border-color: var(--color-primary);
+    outline: none;
+  }
+
+  .btn-apply {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-primary);
+    color: var(--color-primary-ink);
+    border: 0;
+    border-radius: var(--radius-md);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-apply:hover {
+    filter: brightness(1.05);
+  }
+
+  @media (max-width: 900px) {
+    .filter-wrap {
+      position: static;
+    }
+    .filter-toggle {
+      display: block;
+    }
+    .filter-panel {
+      display: none;
+      margin-top: var(--space-3);
+    }
+    .filter-panel[data-open] {
+      display: flex;
+    }
+  }
+</style>
+
+<script>
+  const toggle = document.querySelector<HTMLButtonElement>('[data-filter-toggle]');
+  const panel = document.getElementById('filter-panel');
+  toggle?.addEventListener('click', () => {
+    const open = panel?.toggleAttribute('data-open');
+    toggle.setAttribute('aria-expanded', String(Boolean(open)));
+  });
+</script>

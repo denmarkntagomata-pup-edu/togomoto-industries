@@ -1,0 +1,311 @@
+---
+// Edit a listing + manage its images (spec §8.2/§8.3, PLAN P1-8). The core form
+// PATCHes /api/admin/listings/:id; the image manager calls the
+// /api/admin/listings/:id/images* endpoints (upload, set-primary, alt, reorder,
+// delete). SSR; Access-gated. 404 on unknown/invalid id.
+export const prerender = false;
+
+import { getListingWithImages } from '../../../lib/admin-listings';
+import { SLUG_BY_CATEGORY, type Category } from '../../../db/enums';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import ListingForm from '../../../components/admin/ListingForm.astro';
+import { imageUrl } from '../../../lib/images';
+
+const id = Number(Astro.params.id);
+if (!Number.isInteger(id) || id <= 0) {
+  return new Response('Not found', { status: 404 });
+}
+
+const data = await getListingWithImages(Astro.locals.runtime.env, id);
+if (!data) {
+  return new Response('Not found', { status: 404 });
+}
+const { listing, images } = data;
+---
+
+<AdminLayout title={`Edit · ${listing.title}`} active="listings">
+  <p class="crumb"><a href="/admin/listings"><svg class="ic"><use href="#i-arrow-left" /></svg> Listings</a></p>
+  <div class="page-head">
+    <div class="title-wrap"><h1>Edit listing</h1><span class="count">#{listing.id}</span></div>
+    {listing.isPublished && (
+      <div class="actions">
+        <a class="btn btn-secondary" href={`/products/${SLUG_BY_CATEGORY[listing.category as Category]}/${listing.slug}`} target="_blank" rel="noopener">
+          <svg class="ic"><use href="#i-external" /></svg> View public page
+        </a>
+      </div>
+    )}
+  </div>
+
+  <ListingForm listing={listing} />
+
+  <section class="images" data-listing-id={listing.id}>
+    <h2 class="block-title">Images <span class="count">{images.length}</span></h2>
+
+    <form id="upload-form" class="upload">
+      <label class="dropzone">
+        <svg class="ic"><use href="#i-upload" /></svg>
+        <span class="dz-text">Choose images to upload</span>
+        <span class="hint">JPEG, PNG or WebP · ≤ 5 MB each · longest edge ≤ 4000px</span>
+        <input type="file" id="file-input" name="file" accept="image/jpeg,image/png,image/webp" multiple required />
+      </label>
+      <button type="submit" class="btn btn-primary"><svg class="ic"><use href="#i-upload" /></svg> Upload</button>
+      <p class="status-message" id="img-status" role="status" aria-live="polite" hidden></p>
+    </form>
+
+    {images.length === 0 ? (
+      <div class="panel">
+        <div class="empty-state">
+          <span class="ico"><svg class="ic"><use href="#i-image" /></svg></span>
+          <p>No images yet. The first one you upload becomes the primary.</p>
+        </div>
+      </div>
+    ) : (
+      <ol class="img-list" id="img-list">
+        {images.map((img) => (
+          <li class="img-row" data-image-id={img.id}>
+            <div class="img-thumb">
+              <img src={imageUrl(img.r2Key, 'thumb')} alt={img.alt ?? ''} width="96" height="72" loading="lazy" />
+              {img.isPrimary && <span class="primary-flag"><svg class="ic"><use href="#i-star" /></svg> Primary</span>}
+            </div>
+            <div class="img-fields">
+              <label class="alt-field">
+                <span class="muted">Alt text</span>
+                <span class="alt-row">
+                  <input type="text" class="alt-input input" value={img.alt ?? ''} maxlength="300" placeholder="Describe the image" />
+                  <button type="button" class="btn btn-secondary btn-sm" data-action="save-alt">Save</button>
+                </span>
+              </label>
+              {!img.isPrimary && (
+                <button type="button" class="link-btn" data-action="primary"><svg class="ic"><use href="#i-star" /></svg> Set as primary</button>
+              )}
+            </div>
+            <div class="img-actions">
+              <button type="button" class="icon-btn" data-action="up" title="Move up" aria-label="Move up"><svg class="ic"><use href="#i-arrow-up" /></svg></button>
+              <button type="button" class="icon-btn" data-action="down" title="Move down" aria-label="Move down"><svg class="ic"><use href="#i-arrow-down" /></svg></button>
+              <button type="button" class="icon-btn danger" data-action="delete" title="Delete" aria-label="Delete"><svg class="ic"><use href="#i-trash" /></svg></button>
+            </div>
+          </li>
+        ))}
+      </ol>
+    )}
+  </section>
+
+  <section class="danger-zone">
+    <h2 class="block-title">Danger zone</h2>
+    <div class="danger-row">
+      <button type="button" id="delete-listing" class="btn btn-danger"><svg class="ic"><use href="#i-trash" /></svg> Delete this listing</button>
+      <span class="hint">Removes the listing, its image rows, and the image files from storage.</span>
+    </div>
+  </section>
+</AdminLayout>
+
+<script>
+  const section = document.querySelector<HTMLElement>('.images');
+  const listingId = section?.dataset.listingId;
+
+  const imgStatus = document.getElementById('img-status')!;
+  const showImgStatus = (msg: string, kind: 'error' | 'ok') => {
+    imgStatus.textContent = msg;
+    imgStatus.dataset.kind = kind;
+    imgStatus.hidden = false;
+  };
+
+  // ── Upload (multipart) ─────────────────────────────────────────────────────
+  const uploadForm = document.getElementById('upload-form') as HTMLFormElement | null;
+  const fileInput = document.getElementById('file-input') as HTMLInputElement | null;
+  uploadForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!fileInput?.files?.length) return;
+    const btn = uploadForm.querySelector('button')!;
+    btn.disabled = true;
+    imgStatus.hidden = true;
+    const fd = new FormData();
+    for (const f of Array.from(fileInput.files)) fd.append('file', f);
+    try {
+      const res = await fetch(`/api/admin/listings/${listingId}/images`, { method: 'POST', body: fd });
+      const out = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok) {
+        showImgStatus(out.error ?? `Upload failed (${res.status})`, 'error');
+        btn.disabled = false;
+        return;
+      }
+      window.location.reload();
+    } catch (err) {
+      showImgStatus('Network error — please try again.', 'error');
+      btn.disabled = false;
+      console.error(err);
+    }
+  });
+
+  // ── Per-image actions (event delegation) ───────────────────────────────────
+  const list = document.getElementById('img-list');
+
+  const orderedIds = (): number[] =>
+    Array.from(list?.querySelectorAll<HTMLElement>('.img-row') ?? []).map((el) =>
+      Number(el.dataset.imageId),
+    );
+
+  list?.addEventListener('click', async (e) => {
+    const target = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]');
+    if (!target) return;
+    const row = target.closest<HTMLElement>('.img-row');
+    if (!row) return;
+    const imageId = row.dataset.imageId;
+    const action = target.dataset.action;
+    const base = `/api/admin/listings/${listingId}/images`;
+
+    try {
+      if (action === 'primary') {
+        await send(`${base}/${imageId}`, 'PATCH', { isPrimary: true });
+        window.location.reload();
+      } else if (action === 'delete') {
+        if (!confirm('Delete this image? This cannot be undone.')) return;
+        await send(`${base}/${imageId}`, 'DELETE');
+        window.location.reload();
+      } else if (action === 'save-alt') {
+        const input = row.querySelector<HTMLInputElement>('.alt-input')!;
+        await send(`${base}/${imageId}`, 'PATCH', { alt: input.value });
+        showImgStatus('Alt text saved.', 'ok');
+      } else if (action === 'up' || action === 'down') {
+        const sibling = action === 'up' ? row.previousElementSibling : row.nextElementSibling;
+        if (!sibling) return;
+        if (action === 'up') row.parentElement!.insertBefore(row, sibling);
+        else row.parentElement!.insertBefore(sibling, row);
+        await send(base, 'PATCH', { order: orderedIds() });
+        showImgStatus('Order saved.', 'ok');
+      }
+    } catch (err) {
+      showImgStatus('Action failed — please try again.', 'error');
+      console.error(err);
+    }
+  });
+
+  async function send(url: string, method: string, body?: unknown) {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { 'content-type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) throw new Error(`${method} ${url} -> ${res.status}`);
+    return res;
+  }
+
+  // ── Delete listing ─────────────────────────────────────────────────────────
+  document.getElementById('delete-listing')?.addEventListener('click', async () => {
+    if (!confirm('Delete this listing and all its images? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`/api/admin/listings/${listingId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`DELETE -> ${res.status}`);
+      window.location.href = '/admin/listings';
+    } catch (err) {
+      alert('Could not delete the listing. Please try again.');
+      console.error(err);
+    }
+  });
+</script>
+
+<style>
+  .block-title {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    font-size: 1.1rem;
+    margin: var(--sp-6) 0 var(--sp-4);
+    padding-top: var(--sp-5);
+    border-top: 1px solid var(--border);
+  }
+  .block-title .count { color: var(--faint); font-size: 0.95rem; font-weight: 500; }
+
+  /* Upload */
+  .upload {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--sp-4);
+  }
+  .dropzone {
+    flex: 1 1 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    text-align: center;
+    padding: var(--sp-5);
+    background: var(--surface);
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--r-lg);
+    cursor: pointer;
+    color: var(--muted);
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .dropzone:hover { border-color: var(--accent); background: var(--surface-2); }
+  .dropzone .ic { width: 26px; height: 26px; color: var(--faint); margin-bottom: 0.3rem; }
+  .dropzone .dz-text { color: var(--text); font-weight: 500; font-size: 0.9rem; }
+  .dropzone input[type='file'] {
+    font-size: 0.8rem;
+    margin-top: var(--sp-2);
+    color: var(--muted);
+    max-width: 100%;
+  }
+  #img-status { flex-basis: 100%; margin: 0; }
+
+  /* Image cards */
+  .img-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+  .img-row {
+    display: flex;
+    gap: var(--sp-4);
+    align-items: flex-start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: var(--sp-3);
+  }
+  .img-thumb { position: relative; flex: 0 0 auto; }
+  .img-thumb img {
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    display: block;
+  }
+  .primary-flag {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-size: 0.66rem;
+    font-weight: 600;
+    padding: 0.1rem 0.35rem;
+    border-radius: var(--r-pill);
+    background: var(--success-bg);
+    color: var(--success-text);
+    border: 1px solid var(--success-border);
+  }
+  .primary-flag .ic { width: 11px; height: 11px; }
+
+  .img-fields { flex: 1 1 auto; display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+  .alt-field { display: flex; flex-direction: column; gap: var(--sp-1); font-size: 0.8rem; }
+  .alt-row { display: flex; gap: var(--sp-2); }
+  .alt-input { flex: 1 1 auto; }
+  .link-btn { display: inline-flex; align-items: center; gap: 0.3rem; align-self: flex-start; }
+  .link-btn .ic { width: 14px; height: 14px; }
+
+  .img-actions { display: flex; gap: var(--sp-1); flex: 0 0 auto; }
+
+  .danger-zone { margin-bottom: var(--sp-6); }
+  .danger-row { display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; }
+
+  @media (max-width: 600px) {
+    .img-row { flex-wrap: wrap; }
+  }
+</style>

@@ -1,0 +1,68 @@
+---
+// Admin spare-parts table (spec §8.7, PLAN P2-4). Lists ALL spare parts (drafts
+// too) in authoring order. SSR; Access-gated. Bindings via
+// Astro.locals.runtime.env (AGENTS.md §2).
+export const prerender = false;
+
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getAdminSpareParts } from '../../../lib/spare-parts';
+import { formatDateTime, formatPrice } from '../../../lib/format';
+import { imageUrl } from '../../../lib/images';
+
+const rows = await getAdminSpareParts(Astro.locals.runtime.env);
+---
+
+<AdminLayout title="Spare parts" active="spare-parts">
+  <div class="page-head">
+    <div class="title-wrap"><h1>Spare parts</h1><span class="count">{rows.length}</span></div>
+    <div class="actions">
+      <a class="btn btn-primary" href="/admin/spare-parts/new"><svg class="ic"><use href="#i-plus" /></svg> New spare part</a>
+    </div>
+  </div>
+
+  {rows.length === 0 ? (
+    <div class="panel">
+      <div class="empty-state">
+        <span class="ico"><svg class="ic"><use href="#i-wrench" /></svg></span>
+        <p>No spare parts yet.</p>
+        <a class="btn btn-primary" href="/admin/spare-parts/new"><svg class="ic"><use href="#i-plus" /></svg> Create a spare part</a>
+      </div>
+    </div>
+  ) : (
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th></th><th>Name</th><th>Category</th><th>Price</th><th>Visibility</th><th>Sort</th><th>Updated</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((part) => (
+            <tr>
+              <td class="thumb-cell">
+                {part.imageR2Key ? (
+                  <img src={imageUrl(part.imageR2Key, 'thumb')} alt="" width="64" height="48" loading="lazy" />
+                ) : (
+                  <span class="no-thumb"><svg class="ic"><use href="#i-image" /></svg></span>
+                )}
+              </td>
+              <td>
+                <a href={`/admin/spare-parts/${part.id}`}>{part.name}</a>
+                {part.description && <div class="muted small">{part.description.slice(0, 80)}</div>}
+              </td>
+              <td class="small">{part.category ?? '—'}</td>
+              <td class="small">{part.price != null ? formatPrice(part.price) : '—'}</td>
+              <td>
+                {part.isPublished ? (
+                  <span class="badge badge-success">Published</span>
+                ) : (
+                  <span class="badge badge-warning">Draft</span>
+                )}
+              </td>
+              <td class="small">{part.sortOrder}</td>
+              <td class="muted small">{formatDateTime(part.updatedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</AdminLayout>

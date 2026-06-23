@@ -1,0 +1,309 @@
+---
+// Reusable inquiry form (spec §6.4, PLAN P1-6). Identical field set in every
+// context; the host sets `source` (and `listingId` for product_detail). Posts
+// JSON to /api/inquiries; client validation is UX only — the endpoint's Zod is
+// authoritative. Includes the honeypot + a Turnstile slot (wired in P2-7).
+import type { InquirySource } from '../db/enums';
+import { HONEYPOT_FIELD } from '../lib/inquiry';
+import { PUBLIC_TURNSTILE_SITE_KEY } from '../lib/turnstile';
+
+interface Props {
+  source: InquirySource;
+  listingId?: number | null;
+  submitLabel?: string;
+  /** Colour treatment: amber (default site-wide CTA) or blue (item inquiry). */
+  variant?: 'default' | 'accent';
+}
+
+const {
+  source,
+  listingId = null,
+  submitLabel = 'Submit inquiry',
+  variant = 'default',
+} = Astro.props;
+
+// Public site key (safe to expose). The CF runtime binding wins at runtime (dev +
+// SSR pages — local dev gets the .dev.vars test key); on prerendered SSG form
+// pages the binding isn't populated at build, so fall back to the public constant
+// (PLAN P2-7). Mirrors wrangler.jsonc vars.TURNSTILE_SITE_KEY.
+const turnstileSiteKey =
+  Astro.locals.runtime?.env?.TURNSTILE_SITE_KEY ?? PUBLIC_TURNSTILE_SITE_KEY;
+---
+
+<form class={`inquiry-form inquiry-form--${variant}`} action="/api/inquiries" method="post" novalidate data-inquiry-form>
+  <input type="hidden" name="source" value={source} />
+  {listingId != null && <input type="hidden" name="listingId" value={listingId} />}
+
+  {/* Honeypot: hidden from people; bots that fill it are rejected server-side. */}
+  <div class="hp" aria-hidden="true">
+    <label>
+      Do not fill this field
+      <input type="text" name={HONEYPOT_FIELD} tabindex="-1" autocomplete="off" />
+    </label>
+  </div>
+
+  <div class="grid">
+    <div class="field">
+      <label for="if-name">Name <span class="req">*</span></label>
+      <input id="if-name" name="name" type="text" required autocomplete="name" aria-describedby="if-name-err" />
+      <p class="err" id="if-name-err" data-error-for="name"></p>
+    </div>
+
+    <div class="field">
+      <label for="if-email">Email <span class="req">*</span></label>
+      <input id="if-email" name="email" type="email" required autocomplete="email" aria-describedby="if-email-err" />
+      <p class="err" id="if-email-err" data-error-for="email"></p>
+    </div>
+
+    <div class="field">
+      <label for="if-contact">Contact number <span class="req">*</span></label>
+      <input id="if-contact" name="contactNumber" type="tel" required autocomplete="tel" aria-describedby="if-contact-err" />
+      <p class="err" id="if-contact-err" data-error-for="contactNumber"></p>
+    </div>
+
+    <div class="field">
+      <label for="if-company">Company</label>
+      <input id="if-company" name="company" type="text" autocomplete="organization" aria-describedby="if-company-err" />
+      <p class="err" id="if-company-err" data-error-for="company"></p>
+    </div>
+
+    <div class="field field--full">
+      <label for="if-message">Message <span class="req">*</span></label>
+      <textarea id="if-message" name="message" rows="5" required aria-describedby="if-message-err"></textarea>
+      <p class="err" id="if-message-err" data-error-for="message"></p>
+    </div>
+  </div>
+
+  {/* Turnstile widget (implicit render). The api.js script below injects a
+      hidden `cf-turnstile-response` input into the form; FormData picks it up and
+      the endpoint verifies it server-side (P2-7). */}
+  {turnstileSiteKey && <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-theme="dark"></div>}
+
+  <div class="actions">
+    <button type="submit" class="submit">{submitLabel}</button>
+    <p class="status" role="status" aria-live="polite" data-form-status></p>
+  </div>
+</form>
+
+{/* Cloudflare Turnstile API (implicit rendering). is:inline keeps Astro from
+    bundling/moving it. Idempotent if more than one form is on the page. */}
+<script is:inline async defer src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>
+
+<style>
+  .inquiry-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  /* Variant accent: amber site-wide, blue for the item inquiry. Drives the
+     focus underline, required asterisk and submit button via the --accent vars. */
+  .inquiry-form--default {
+    --accent: var(--color-primary);
+    --accent-ink: var(--color-primary-ink);
+  }
+  .inquiry-form--accent {
+    --accent: var(--color-secondary);
+    --accent-ink: var(--color-secondary-ink);
+  }
+
+  .hp {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .field--full {
+    grid-column: 1 / -1;
+  }
+  label {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text);
+  }
+  .req {
+    color: var(--accent, var(--color-primary));
+  }
+  /* Underline-style fields (mockup): transparent box, bottom rule only, accent
+     underline on focus. The accent colour follows the form variant below. */
+  input,
+  textarea {
+    width: 100%;
+    padding: var(--space-2) 0;
+    background: transparent;
+    color: var(--color-text);
+    border: 0;
+    border-bottom: 1px solid var(--color-border);
+    border-radius: 0;
+    font: inherit;
+    resize: vertical;
+    transition: border-color 0.15s ease;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-muted);
+  }
+  input:focus,
+  textarea:focus {
+    outline: none;
+    border-bottom-color: var(--accent, var(--color-primary));
+    border-bottom-width: 2px;
+  }
+  input[aria-invalid='true'],
+  textarea[aria-invalid='true'] {
+    border-bottom-color: var(--color-danger);
+  }
+
+  .err {
+    margin: 0;
+    min-height: 1em;
+    font-size: var(--text-xs);
+    color: var(--color-danger);
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+  .submit {
+    padding: var(--space-3) var(--space-7);
+    background: var(--accent, var(--color-primary));
+    color: var(--accent-ink, var(--color-primary-ink));
+    border: 0;
+    border-radius: var(--radius-md);
+    font: inherit;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .submit:hover {
+    filter: brightness(1.05);
+  }
+  .submit:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .status {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+  }
+  .status[data-state='success'] {
+    color: var(--color-success);
+    font-weight: 600;
+  }
+  .status[data-state='error'] {
+    color: var(--color-danger);
+    font-weight: 600;
+  }
+
+  @media (max-width: 560px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script>
+  const REQUIRED = ['name', 'email', 'contactNumber', 'message'] as const;
+
+  function setError(form: HTMLFormElement, field: string, message: string) {
+    const slot = form.querySelector<HTMLElement>(`[data-error-for="${field}"]`);
+    if (slot) slot.textContent = message;
+    const input = form.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${field}"]`);
+    if (input && message) input.setAttribute('aria-invalid', 'true');
+    else input?.removeAttribute('aria-invalid');
+  }
+
+  function clearErrors(form: HTMLFormElement) {
+    form.querySelectorAll<HTMLElement>('[data-error-for]').forEach((el) => (el.textContent = ''));
+    form.querySelectorAll('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'));
+  }
+
+  function validate(form: HTMLFormElement): boolean {
+    let ok = true;
+    for (const field of REQUIRED) {
+      const input = form.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${field}"]`);
+      const value = (input?.value ?? '').trim();
+      if (!value) {
+        setError(form, field, 'This field is required.');
+        ok = false;
+      } else if (field === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        setError(form, field, 'Enter a valid email address.');
+        ok = false;
+      }
+    }
+    return ok;
+  }
+
+  document.querySelectorAll<HTMLFormElement>('[data-inquiry-form]').forEach((form) => {
+    const status = form.querySelector<HTMLElement>('[data-form-status]');
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+
+    const setStatus = (msg: string, state?: 'success' | 'error') => {
+      if (!status) return;
+      status.textContent = msg;
+      if (state) status.dataset.state = state;
+      else delete status.dataset.state;
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearErrors(form);
+      setStatus('');
+      if (!validate(form)) {
+        setStatus('Please fix the highlighted fields.', 'error');
+        return;
+      }
+
+      const payload = Object.fromEntries(new FormData(form).entries());
+      submit?.setAttribute('disabled', 'true');
+      setStatus('Sending…');
+
+      try {
+        const res = await fetch(form.action, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          fields?: Record<string, string[]>;
+        };
+
+        if (res.ok) {
+          form.reset();
+          // Turnstile tokens are single-use; reset the widget so a follow-up
+          // submission gets a fresh token instead of a stale/empty one.
+          (window as unknown as { turnstile?: { reset: () => void } }).turnstile?.reset();
+          setStatus('Thanks — your inquiry has been sent. We will be in touch shortly.', 'success');
+        } else if (res.status === 422 && data.fields) {
+          for (const [field, messages] of Object.entries(data.fields)) {
+            setError(form, field, messages[0] ?? 'Invalid value.');
+          }
+          setStatus('Please fix the highlighted fields.', 'error');
+        } else {
+          setStatus(data.error ?? 'Something went wrong. Please try again.', 'error');
+        }
+      } catch {
+        setStatus('Network error. Please try again.', 'error');
+      } finally {
+        submit?.removeAttribute('disabled');
+      }
+    });
+  });
+</script>

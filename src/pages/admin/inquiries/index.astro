@@ -1,0 +1,331 @@
+---
+// Admin inquiry inbox (spec §8.4, PLAN P1-7). Default view is a ClickUp-style
+// BOARD (one column per status, enum order); a filterable LIST view is the
+// alternate (toggle via ?view=list). Cards move between columns by PATCHing
+// /api/admin/inquiries/:id — the server is authoritative. SSR; Access-gated.
+export const prerender = false;
+
+import { and, desc, eq } from 'drizzle-orm';
+import { getDb } from '../../../db';
+import { inquiries, listings } from '../../../db/schema';
+import { INQUIRY_SOURCES, INQUIRY_STATUSES } from '../../../db/enums';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatDateTime, formatPrice, labelForEnum, snippet } from '../../../lib/format';
+
+const url = new URL(Astro.request.url);
+const view = url.searchParams.get('view') === 'list' ? 'list' : 'board';
+const sourceParam = url.searchParams.get('source');
+const statusParam = url.searchParams.get('status');
+const sourceFilter = INQUIRY_SOURCES.includes(sourceParam as any) ? sourceParam : null;
+const statusFilter = INQUIRY_STATUSES.includes(statusParam as any) ? statusParam : null;
+
+const db = getDb(Astro.locals.runtime.env);
+
+// One read for both views: inquiry rows + the linked unit (when listing_id set).
+// Board shows everything; list applies the source/status filters.
+const conditions = [];
+if (view === 'list' && sourceFilter) conditions.push(eq(inquiries.source, sourceFilter));
+if (view === 'list' && statusFilter) conditions.push(eq(inquiries.status, statusFilter));
+
+const rows = await db
+  .select({
+    id: inquiries.id,
+    source: inquiries.source,
+    status: inquiries.status,
+    name: inquiries.name,
+    email: inquiries.email,
+    message: inquiries.message,
+    listingId: inquiries.listingId,
+    createdAt: inquiries.createdAt,
+    listingTitle: listings.title,
+    listingPrice: listings.price,
+    listingPoa: listings.priceOnApplication,
+  })
+  .from(inquiries)
+  .leftJoin(listings, eq(inquiries.listingId, listings.id))
+  .where(conditions.length ? and(...conditions) : undefined)
+  .orderBy(desc(inquiries.createdAt));
+
+const columns = INQUIRY_STATUSES.map((status) => ({
+  status,
+  rows: rows.filter((r) => r.status === status),
+}));
+
+const qs = (next: Record<string, string | null>) => {
+  const p = new URLSearchParams(url.search);
+  for (const [k, v] of Object.entries(next)) {
+    if (v == null) p.delete(k);
+    else p.set(k, v);
+  }
+  const s = p.toString();
+  return s ? `?${s}` : '';
+};
+---
+
+<AdminLayout title="Inquiries" active="inquiries">
+  <div class="page-head">
+    <div class="title-wrap"><h1>Inquiries</h1><span class="count">{rows.length}</span></div>
+    <div class="segmented" role="group" aria-label="View">
+      <a href={qs({ view: null, source: null, status: null })} aria-current={view === 'board' ? 'page' : undefined}>Board</a>
+      <a href="?view=list" aria-current={view === 'list' ? 'page' : undefined}>List</a>
+    </div>
+  </div>
+
+  {view === 'board' && (
+    <div class="board">
+      {columns.map((col) => (
+        <section class="column" data-status={col.status} aria-label={labelForEnum(col.status)}>
+          <header class="col-head">
+            <span class="col-title"><span class="col-dot"></span>{labelForEnum(col.status)}</span>
+            <span class="col-count">{col.rows.length}</span>
+          </header>
+          <div class="cards">
+            {col.rows.map((r) => (
+              <article class="card">
+                <a class="card-name" href={`/admin/inquiries/${r.id}`}>{r.name}</a>
+                <div class="card-meta">
+                  <span class="badge">{labelForEnum(r.source)}</span>
+                  <span class="muted small">{formatDateTime(r.createdAt)}</span>
+                </div>
+                {r.listingId && r.listingTitle && (
+                  <div class="card-unit">
+                    <svg class="ic"><use href="#i-truck" /></svg>
+                    <span>{r.listingTitle} <span class="muted">· {formatPrice(r.listingPrice, r.listingPoa ?? false)}</span></span>
+                  </div>
+                )}
+                <p class="card-msg">{snippet(r.message)}</p>
+                <label class="sr-only" for={`status-${r.id}`}>Status for {r.name}</label>
+                <select id={`status-${r.id}`} class="status-select" data-id={r.id}>
+                  {INQUIRY_STATUSES.map((s) => (
+                    <option value={s} selected={s === r.status}>{labelForEnum(s)}</option>
+                  ))}
+                </select>
+              </article>
+            ))}
+            {col.rows.length === 0 && <p class="col-empty muted">No inquiries</p>}
+          </div>
+        </section>
+      ))}
+    </div>
+  )}
+
+  {view === 'list' && (
+    <>
+      <form class="filters" method="get">
+        <input type="hidden" name="view" value="list" />
+        <label>
+          Source
+          <select name="source">
+            <option value="">All</option>
+            {INQUIRY_SOURCES.map((s) => (
+              <option value={s} selected={s === sourceFilter}>{labelForEnum(s)}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Status
+          <select name="status">
+            <option value="">All</option>
+            {INQUIRY_STATUSES.map((s) => (
+              <option value={s} selected={s === statusFilter}>{labelForEnum(s)}</option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" class="btn btn-secondary">Apply</button>
+        <a class="reset" href="?view=list">Reset</a>
+      </form>
+
+      {rows.length === 0 ? (
+        <div class="panel">
+          <div class="empty-state">
+            <span class="ico"><svg class="ic"><use href="#i-search" /></svg></span>
+            <p>No inquiries match these filters.</p>
+          </div>
+        </div>
+      ) : (
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Name</th><th>Source</th><th>Unit</th><th>Received</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr>
+                  <td><a href={`/admin/inquiries/${r.id}`}>{r.name}</a><div class="muted small">{r.email}</div></td>
+                  <td><span class="badge">{labelForEnum(r.source)}</span></td>
+                  <td class="small">{r.listingId && r.listingTitle ? `${r.listingTitle} — ${formatPrice(r.listingPrice, r.listingPoa ?? false)}` : '—'}</td>
+                  <td class="muted small">{formatDateTime(r.createdAt)}</td>
+                  <td>
+                    <label class="sr-only" for={`status-l-${r.id}`}>Status for {r.name}</label>
+                    <select id={`status-l-${r.id}`} class="status-select" data-id={r.id}>
+                      {INQUIRY_STATUSES.map((s) => (
+                        <option value={s} selected={s === r.status}>{labelForEnum(s)}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  )}
+</AdminLayout>
+
+<script>
+  // Minimal, keyboard-accessible card moves: changing a status <select> PATCHes
+  // the server (authoritative) then reloads so the board re-renders in the new
+  // column. No drag-and-drop library (INSTRUCT TASK B / spec Phase-3 polish).
+  document.addEventListener('change', async (e) => {
+    const el = e.target as HTMLElement;
+    if (!(el instanceof HTMLSelectElement) || !el.classList.contains('status-select')) return;
+    const id = el.dataset.id;
+    if (!id) return;
+    el.disabled = true;
+    try {
+      const res = await fetch(`/api/admin/inquiries/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: el.value }),
+      });
+      if (!res.ok) throw new Error(`PATCH failed: ${res.status}`);
+      location.reload();
+    } catch (err) {
+      el.disabled = false;
+      alert('Could not update status. Please try again.');
+      console.error(err);
+    }
+  });
+</script>
+
+<style>
+  /* Segmented board/list toggle */
+  .segmented {
+    display: inline-flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 3px;
+    gap: 2px;
+  }
+  .segmented a {
+    color: var(--muted);
+    padding: 0.32rem 0.85rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+  .segmented a:hover { color: var(--text); }
+  .segmented a[aria-current='page'] {
+    color: var(--text);
+    background: var(--surface-3);
+    box-shadow: var(--shadow-1);
+  }
+
+  /* Board */
+  .board {
+    display: flex;
+    gap: var(--sp-3);
+    overflow-x: auto;
+    padding-bottom: var(--sp-3);
+    align-items: flex-start;
+    /* Positioning context so the per-card sr-only <label>s (position:absolute)
+       resolve against the board and get clipped by its scroll, instead of
+       escaping to the viewport and widening the page on mobile. */
+    position: relative;
+  }
+  .column {
+    flex: 0 0 280px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: var(--sp-3);
+  }
+  .col-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--sp-3);
+    padding-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .col-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-weight: 600;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text);
+  }
+  .col-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--_c, var(--border-strong));
+  }
+  .col-count {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface-2);
+    border-radius: var(--r-pill);
+    padding: 0.05rem 0.5rem;
+    min-width: 1.5rem;
+    text-align: center;
+  }
+  .column[data-status='new'] { --_c: var(--st-new); }
+  .column[data-status='read'] { --_c: var(--st-read); }
+  .column[data-status='contacted'] { --_c: var(--st-contacted); }
+  .column[data-status='negotiating'] { --_c: var(--st-negotiating); }
+  .column[data-status='won'] { --_c: var(--st-won); }
+  .column[data-status='lost'] { --_c: var(--st-lost); }
+  .column[data-status='archived'] { --_c: var(--st-archived); }
+  .column[data-status] .col-head { border-bottom-color: color-mix(in srgb, var(--_c) 35%, var(--border)); }
+
+  .cards { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--_c, var(--border-strong));
+    border-radius: var(--r-md);
+    padding: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .card:hover { background: var(--surface-3); }
+  .card-name { font-weight: 600; color: var(--text); }
+  .card-name:hover { color: var(--accent); }
+  .card-meta { display: flex; align-items: center; gap: 0.5rem; }
+  .card-unit {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--text);
+  }
+  .card-unit .ic { width: 14px; height: 14px; color: var(--faint); }
+  .card-msg {
+    margin: 0;
+    font-size: 0.84rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .card .status-select { margin-top: var(--sp-1); }
+  .col-empty {
+    font-size: 0.8rem;
+    text-align: center;
+    padding: var(--sp-4) 0;
+    color: var(--faint);
+  }
+
+  /* Phones: keep the horizontal-scroll board, but cap a column to the viewport
+     so a single card column never forces the whole page to overflow. */
+  @media (max-width: 520px) {
+    .column { flex-basis: min(280px, 84vw); }
+  }
+</style>

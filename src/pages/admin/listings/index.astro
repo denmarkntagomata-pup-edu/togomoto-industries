@@ -1,0 +1,128 @@
+---
+// Admin listings table (spec §8.2, PLAN P1-8). Lists ALL listings (drafts too),
+// filterable by category + status + publish state via URL query params. SSR;
+// Access-gated. Bindings via Astro.locals.runtime.env (AGENTS.md §2).
+export const prerender = false;
+
+import { getAdminListings, type AdminListingFilters } from '../../../lib/admin-listings';
+import {
+  CATEGORIES,
+  SALE_STATUSES,
+  SLUG_BY_CATEGORY,
+  type Category,
+  type SaleStatus,
+} from '../../../db/enums';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatDateTime, formatPrice, labelForEnum } from '../../../lib/format';
+import { imageUrl } from '../../../lib/images';
+
+const url = new URL(Astro.request.url);
+const catParam = url.searchParams.get('category');
+const statusParam = url.searchParams.get('status');
+const pubParam = url.searchParams.get('published');
+
+const category = CATEGORIES.includes(catParam as Category) ? (catParam as Category) : undefined;
+const status = SALE_STATUSES.includes(statusParam as SaleStatus) ? (statusParam as SaleStatus) : undefined;
+const published = pubParam === 'published' || pubParam === 'draft' ? pubParam : undefined;
+
+const filters: AdminListingFilters = { category, status, published };
+const rows = await getAdminListings(Astro.locals.runtime.env, filters);
+---
+
+<AdminLayout title="Listings" active="listings">
+  <div class="page-head">
+    <div class="title-wrap"><h1>Listings</h1><span class="count">{rows.length}</span></div>
+    <div class="actions">
+      <a class="btn btn-primary" href="/admin/listings/new"><svg class="ic"><use href="#i-plus" /></svg> New listing</a>
+    </div>
+  </div>
+
+  <form class="filters" method="get">
+    <label>
+      Category
+      <select name="category">
+        <option value="">All</option>
+        {CATEGORIES.map((c) => (
+          <option value={c} selected={c === category}>{labelForEnum(c)}</option>
+        ))}
+      </select>
+    </label>
+    <label>
+      Sale status
+      <select name="status">
+        <option value="">All</option>
+        {SALE_STATUSES.map((s) => (
+          <option value={s} selected={s === status}>{labelForEnum(s)}</option>
+        ))}
+      </select>
+    </label>
+    <label>
+      Visibility
+      <select name="published">
+        <option value="">All</option>
+        <option value="published" selected={published === 'published'}>Published</option>
+        <option value="draft" selected={published === 'draft'}>Draft</option>
+      </select>
+    </label>
+    <button type="submit" class="btn btn-secondary">Apply</button>
+    <a class="reset" href="/admin/listings">Reset</a>
+  </form>
+
+  {rows.length === 0 ? (
+    <div class="panel">
+      <div class="empty-state">
+        <span class="ico"><svg class="ic"><use href="#i-truck" /></svg></span>
+        <p>No listings match these filters.</p>
+        <a class="btn btn-primary" href="/admin/listings/new"><svg class="ic"><use href="#i-plus" /></svg> Create a listing</a>
+      </div>
+    </div>
+  ) : (
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th></th><th>Title</th><th>Category</th><th>Price</th><th>Sale</th><th>Visibility</th><th>Images</th><th>Updated</th></tr>
+        </thead>
+        <tbody>
+          {rows.map(({ listing, primaryKey, imageCount }) => (
+            <tr>
+              <td class="thumb-cell">
+                {primaryKey ? (
+                  <img src={imageUrl(primaryKey, 'thumb')} alt="" width="64" height="48" loading="lazy" />
+                ) : (
+                  <span class="no-thumb"><svg class="ic"><use href="#i-image" /></svg></span>
+                )}
+              </td>
+              <td>
+                <a href={`/admin/listings/${listing.id}`}>{listing.title}</a>
+                <div class="muted small">{[listing.maker, listing.model].filter(Boolean).join(' · ') || '—'}</div>
+              </td>
+              <td class="small">{labelForEnum(listing.category)}</td>
+              <td class="small">{formatPrice(listing.price, listing.priceOnApplication)}</td>
+              <td><span class="badge badge-sale dot" data-sale={listing.status}>{labelForEnum(listing.status)}</span></td>
+              <td>
+                {listing.isPublished ? (
+                  <span class="badge badge-success">Published</span>
+                ) : (
+                  <span class="badge badge-warning">Draft</span>
+                )}
+              </td>
+              <td class="small">{imageCount}</td>
+              <td class="muted small">
+                {listing.isPublished ? (
+                  <a href={`/products/${SLUG_BY_CATEGORY[listing.category as Category]}/${listing.slug}`} target="_blank" rel="noopener" class="ext-link">{formatDateTime(listing.updatedAt)} <svg class="ic ext"><use href="#i-external" /></svg></a>
+                ) : (
+                  formatDateTime(listing.updatedAt)
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</AdminLayout>
+
+<style>
+  .ext-link { display: inline-flex; align-items: center; gap: 0.3rem; }
+  .ic.ext { width: 13px; height: 13px; opacity: 0.7; }
+</style>

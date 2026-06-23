@@ -1,0 +1,41 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "togomoto-industries",
+	// Sanitized, local-only demo clone — run with `wrangler dev` / `astro dev`.
+	// Routes / custom domain removed and there is no account_id, so this config is
+	// intentionally NOT deployable.
+	"main": "./dist/_worker.js/index.js",
+	"compatibility_date": "2026-06-18",
+	// nodejs_compat is intentionally NOT enabled (spec §2.5): add it only if a
+	// dependency proves to require Node built-ins.
+	"assets": {
+		"binding": "ASSETS",
+		"directory": "./dist"
+	},
+	"observability": {
+		"enabled": true
+	},
+	"vars": {
+		// Public, non-secret: the Turnstile SITE key (client widget). Local dev
+		// overrides this with the test key via .dev.vars. The Turnstile SECRET
+		// key is NEVER here — it's a Wrangler secret in prod, test key in .dev.vars.
+		"TURNSTILE_SITE_KEY": "1x00000000000000000000AA"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "togomoto-db",
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "drizzle/migrations"
+			// No "remote": true — local dev uses local Miniflare D1 (spec §11.5).
+			// Remote ops are explicit: wrangler ... --remote.
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "BUCKET",
+			"bucket_name": "togomoto-media"
+			// No "remote": true — local dev uses local Miniflare R2.
+		}
+	]
+}

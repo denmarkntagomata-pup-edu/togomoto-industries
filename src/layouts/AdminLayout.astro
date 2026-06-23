@@ -1,0 +1,174 @@
+---
+// Admin shell. All /admin/* pages are gated by Cloudflare Access at the edge
+// (AGENTS.md §5) — there is NO in-app auth here. Access does not apply in local
+// dev, so these pages are directly reachable locally; that is expected (spec
+// §11.5). noindex everywhere since this is a private subsystem.
+//
+// Presentation: the admin has its own self-contained design system in
+// src/styles/admin.css (imported below) — a dark "internal CRM" theme kept
+// deliberately separate from the public brand tokens (tokens.css). Layout is a
+// left sidebar that collapses to a drawer on narrow screens.
+import '../styles/admin.css';
+
+interface Props {
+  title: string;
+  /** Which nav item to mark current. */
+  active?: 'dashboard' | 'listings' | 'spare-parts' | 'announcements' | 'inquiries';
+}
+const { title, active } = Astro.props;
+
+const nav = [
+  { key: 'dashboard', href: '/admin', label: 'Dashboard', icon: 'i-dashboard' },
+  { key: 'listings', href: '/admin/listings', label: 'Listings', icon: 'i-truck' },
+  { key: 'spare-parts', href: '/admin/spare-parts', label: 'Spare parts', icon: 'i-wrench' },
+  { key: 'announcements', href: '/admin/announcements', label: 'Announcements', icon: 'i-megaphone' },
+  { key: 'inquiries', href: '/admin/inquiries', label: 'Inquiries', icon: 'i-inbox' },
+] as const;
+
+// Admin pages are private (gated by Access) — never cache them at the edge or in
+// the browser, even though /admin/* is excluded from the public-cache helper (P3-3).
+Astro.response.headers.set('Cache-Control', 'no-store');
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>{title} · Togomoto Admin</title>
+  </head>
+  <body>
+    {/* ── Icon sprite (defined once; consumed via <use href="#i-…">) ──────── */}
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+      <defs>
+        <g
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <symbol id="i-dashboard" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" />
+          </symbol>
+          <symbol id="i-truck" viewBox="0 0 24 24">
+            <path d="M2 7h11v8H2z" /><path d="M13 10h4l4 3v2h-8z" /><circle cx="6.5" cy="17.5" r="1.6" /><circle cx="17" cy="17.5" r="1.6" />
+          </symbol>
+          <symbol id="i-wrench" viewBox="0 0 24 24">
+            <path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L4 16.9 7.1 20l5.4-5.5a4 4 0 0 0 5.2-5.2l-2.5 2.5-2.5-2.5 2.5-2.5z" />
+          </symbol>
+          <symbol id="i-megaphone" viewBox="0 0 24 24">
+            <path d="M3 10v4h3l6 4V6L6 10H3z" /><path d="M16 9a4 4 0 0 1 0 6" />
+          </symbol>
+          <symbol id="i-inbox" viewBox="0 0 24 24">
+            <path d="M4 13l2-7h12l2 7v5H4z" /><path d="M4 13h4l1.5 2h5L16 13h4" />
+          </symbol>
+          <symbol id="i-menu" viewBox="0 0 24 24">
+            <path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" />
+          </symbol>
+          <symbol id="i-x" viewBox="0 0 24 24">
+            <path d="M6 6l12 12" /><path d="M18 6L6 18" />
+          </symbol>
+          <symbol id="i-arrow-left" viewBox="0 0 24 24">
+            <path d="M19 12H5" /><path d="M11 18l-6-6 6-6" />
+          </symbol>
+          <symbol id="i-plus" viewBox="0 0 24 24">
+            <path d="M12 5v14" /><path d="M5 12h14" />
+          </symbol>
+          <symbol id="i-pencil" viewBox="0 0 24 24">
+            <path d="M4 20h4L20 8l-4-4L4 16z" /><path d="M14 6l4 4" />
+          </symbol>
+          <symbol id="i-trash" viewBox="0 0 24 24">
+            <path d="M4 7h16" /><path d="M9 7V5h6v2" /><path d="M6 7l1 13h10l1-13" />
+          </symbol>
+          <symbol id="i-arrow-up" viewBox="0 0 24 24">
+            <path d="M12 19V5" /><path d="M6 11l6-6 6 6" />
+          </symbol>
+          <symbol id="i-arrow-down" viewBox="0 0 24 24">
+            <path d="M12 5v14" /><path d="M6 13l6 6 6-6" />
+          </symbol>
+          <symbol id="i-star" viewBox="0 0 24 24">
+            <path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6L12 17.8 6.7 19.6l1.1-6L3.4 9.4l6-.8z" />
+          </symbol>
+          <symbol id="i-external" viewBox="0 0 24 24">
+            <path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6" />
+          </symbol>
+          <symbol id="i-image" viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8.5" cy="9.5" r="1.5" /><path d="M5 18l5-5 4 4 2-2 3 3" />
+          </symbol>
+          <symbol id="i-search" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="7" /><path d="M21 21l-4-4" />
+          </symbol>
+          <symbol id="i-upload" viewBox="0 0 24 24">
+            <path d="M12 16V5" /><path d="M7 10l5-5 5 5" /><path d="M5 19h14" />
+          </symbol>
+          <symbol id="i-mail" viewBox="0 0 24 24">
+            <rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" />
+          </symbol>
+        </g>
+      </defs>
+    </svg>
+
+    <div class="admin-shell" id="admin-shell">
+      {/* Mobile-only top bar with the drawer toggle */}
+      <div class="admin-topbar">
+        <button type="button" class="icon-btn" id="admin-menu-btn" aria-label="Open menu" aria-controls="admin-shell" aria-expanded="false">
+          <svg class="ic"><use href="#i-menu" /></svg>
+        </button>
+        <div class="admin-brand">
+          <span class="mark"><svg><use href="#i-truck" /></svg></span>
+          <span class="name"><strong>Togomoto</strong><span>Admin</span></span>
+        </div>
+      </div>
+
+      <aside class="admin-sidebar" id="admin-sidebar">
+        <div class="admin-brand">
+          <span class="mark"><svg><use href="#i-truck" /></svg></span>
+          <span class="name"><strong>Togomoto</strong><span>Admin</span></span>
+        </div>
+        <nav class="admin-nav" aria-label="Admin sections">
+          {nav.map((item) => (
+            <a href={item.href} aria-current={active === item.key ? 'page' : undefined}>
+              <svg class="ic"><use href={`#${item.icon}`} /></svg>
+              <span>{item.label}</span>
+            </a>
+          ))}
+        </nav>
+        <div class="admin-sidebar-foot">
+          <a href="/" target="_blank" rel="noopener">View public site ↗</a>
+        </div>
+      </aside>
+
+      <div class="admin-scrim" id="admin-scrim" aria-hidden="true"></div>
+
+      <main class="admin-main">
+        <slot />
+      </main>
+    </div>
+
+    <script>
+      // Mobile drawer toggle. The shell carries data-drawer="open" while the
+      // sidebar is shown; CSS handles the slide. No deps.
+      const shell = document.getElementById('admin-shell');
+      const btn = document.getElementById('admin-menu-btn');
+      const scrim = document.getElementById('admin-scrim');
+      const sidebar = document.getElementById('admin-sidebar');
+
+      const setDrawer = (open: boolean) => {
+        if (!shell || !btn) return;
+        shell.dataset.drawer = open ? 'open' : '';
+        btn.setAttribute('aria-expanded', String(open));
+      };
+
+      btn?.addEventListener('click', () => setDrawer(shell?.dataset.drawer !== 'open'));
+      scrim?.addEventListener('click', () => setDrawer(false));
+      // Close after navigating from a nav link (drawer mode only).
+      sidebar?.querySelectorAll('a').forEach((a) =>
+        a.addEventListener('click', () => setDrawer(false)),
+      );
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') setDrawer(false);
+      });
+    </script>
+  </body>
+</html>

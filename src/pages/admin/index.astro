@@ -1,0 +1,426 @@
+---
+// Admin dashboard. A read-only overview built entirely from existing data via
+// getDashboardStats (lib/admin-stats.ts) — inventory + content KPIs, inventory
+// breakdowns, the inquiry pipeline (funnel + win/loss), recent activity, and
+// 7/30-day trends. SSR; Access-gated. Reuses the admin design system
+// (admin.css); the bars + pipeline SVG are the only page-specific styling.
+export const prerender = false;
+
+import { getDashboardStats, OPEN_INQUIRY_STATUSES } from '../../lib/admin-stats';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { formatDateTime, formatPrice, labelForEnum } from '../../lib/format';
+
+const stats = await getDashboardStats(Astro.locals.runtime.env);
+
+// KPI cards (count + caption + where it links). Order = most actionable first.
+const kpis = [
+  { label: 'Listings', value: stats.listings.total, sub: `${stats.listings.published} published`, href: '/admin/listings' },
+  { label: 'Drafts', value: stats.listings.drafts, sub: 'unpublished listings', href: '/admin/listings?published=draft' },
+  { label: 'Price on application', value: stats.listings.poa, sub: 'listings without a price', href: '/admin/listings' },
+  { label: 'Open inquiries', value: stats.inquiries.open, sub: 'awaiting action', href: '/admin/inquiries' },
+  { label: 'New / unread', value: stats.inquiries.byStatus.find((b) => b.key === 'new')?.count ?? 0, sub: 'just arrived', href: '/admin/inquiries?view=list&status=new' },
+  { label: 'Spare parts', value: stats.spareParts.total, sub: `${stats.spareParts.published} published`, href: '/admin/spare-parts' },
+  { label: 'Announcements', value: stats.announcements.total, sub: `${stats.announcements.published} published`, href: '/admin/announcements' },
+  { label: 'New this week', value: stats.listings.last7d + stats.inquiries.last7d, sub: 'listings + inquiries (7d)', href: '/admin/listings' },
+];
+
+// Inventory breakdown bars share the [data-sale] / per-category palette. The bar
+// width is each bucket's share of the max bucket (so the largest fills the row).
+const saleMax = Math.max(1, ...stats.listings.byStatus.map((b) => b.count));
+const catMax = Math.max(1, ...stats.listings.byCategory.map((b) => b.count));
+const pct = (n: number, max: number) => `${Math.round((n / max) * 100)}%`;
+
+// Pipeline funnel: open stages (in flow order) then the won/lost outcomes.
+const funnel = OPEN_INQUIRY_STATUSES.map((status) => ({
+  status,
+  count: stats.inquiries.byStatus.find((b) => b.key === status)?.count ?? 0,
+}));
+const funnelMax = Math.max(1, ...funnel.map((f) => f.count), stats.inquiries.won, stats.inquiries.lost);
+const winRatePct = stats.inquiries.winRate == null ? null : Math.round(stats.inquiries.winRate * 100);
+---
+
+<AdminLayout title="Dashboard" active="dashboard">
+  <div class="page-head">
+    <div class="title-wrap"><h1>Dashboard</h1></div>
+    <div class="actions">
+      <a class="btn btn-secondary" href="/admin/listings/new"><svg class="ic"><use href="#i-plus" /></svg> New listing</a>
+      <a class="btn btn-secondary" href="/admin/spare-parts/new"><svg class="ic"><use href="#i-plus" /></svg> Spare part</a>
+      <a class="btn btn-secondary" href="/admin/announcements/new"><svg class="ic"><use href="#i-plus" /></svg> Announcement</a>
+    </div>
+  </div>
+
+  {/* ── KPI row ───────────────────────────────────────────────────────────── */}
+  <section>
+    <h2 class="section-title">Overview</h2>
+    <div class="stat-grid">
+      {kpis.map((k) => (
+        <a class="stat" href={k.href}>
+          <span class="stat-num">{k.value}</span>
+          <span class="stat-label">{k.label}</span>
+          <span class="stat-sub">{k.sub}</span>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  {/* ── Inventory breakdowns ──────────────────────────────────────────────── */}
+  <section class="grid-2" style="margin-top: var(--sp-6);">
+    <div class="panel">
+      <div class="head-line">
+        <h2 class="section-title">Inventory by sale status</h2>
+        <a class="link-btn" href="/admin/listings">All listings →</a>
+      </div>
+      <div class="bars">
+        {stats.listings.byStatus.map((b) => (
+          <a class="bar-row" href={`/admin/listings?status=${b.key}`}>
+            <span class="bar-label">{labelForEnum(b.key)}</span>
+            <span class="bar-track"><span class="bar-fill" data-sale={b.key} style={`width:${pct(b.count, saleMax)}`}></span></span>
+            <span class="bar-val">{b.count}</span>
+          </a>
+        ))}
+      </div>
+      {stats.listings.missingPrimaryImage > 0 && (
+        <p class="flag">
+          <span class="badge badge-warning">{stats.listings.missingPrimaryImage}</span>
+          listing{stats.listings.missingPrimaryImage === 1 ? '' : 's'} missing a primary image
+        </p>
+      )}
+    </div>
+
+    <div class="panel">
+      <div class="head-line">
+        <h2 class="section-title">Inventory by category</h2>
+        <span class="muted small">{stats.listings.total} total</span>
+      </div>
+      <div class="bars">
+        {stats.listings.byCategory.map((b) => (
+          <a class="bar-row" href={`/admin/listings?category=${b.key}`}>
+            <span class="bar-label">{labelForEnum(b.key)}</span>
+            <span class="bar-track"><span class="bar-fill cat" style={`width:${pct(b.count, catMax)}`}></span></span>
+            <span class="bar-val">{b.count}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  {/* ── Inquiry pipeline ──────────────────────────────────────────────────── */}
+  <section style="margin-top: var(--sp-6);">
+    <div class="head-line">
+      <h2 class="section-title">Inquiry pipeline · {stats.inquiries.total} total</h2>
+      <a class="link-btn" href="/admin/inquiries">Open the inbox →</a>
+    </div>
+
+    <div class="pipeline">
+      <div class="panel funnel-panel">
+        {funnel.map((f) => (
+          <a class="funnel-row" data-status={f.status} href={`/admin/inquiries?view=list&status=${f.status}`}>
+            <span class="funnel-label">{labelForEnum(f.status)}</span>
+            <span class="funnel-track"><span class="funnel-fill" style={`width:${pct(f.count, funnelMax)}`}></span></span>
+            <span class="funnel-val">{f.count}</span>
+          </a>
+        ))}
+        <div class="outcomes">
+          <a class="outcome" data-status="won" href="/admin/inquiries?view=list&status=won">
+            <span class="o-num">{stats.inquiries.won}</span><span class="o-label">Won</span>
+          </a>
+          <a class="outcome" data-status="lost" href="/admin/inquiries?view=list&status=lost">
+            <span class="o-num">{stats.inquiries.lost}</span><span class="o-label">Lost</span>
+          </a>
+          <div class="outcome winrate">
+            <span class="o-num">{winRatePct == null ? '—' : `${winRatePct}%`}</span><span class="o-label">Win rate</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel donut-panel">
+        <h3 class="section-title">Open by stage</h3>
+        {stats.inquiries.open === 0 ? (
+          <p class="muted small">No open inquiries.</p>
+        ) : (
+          <>
+            <svg class="donut" viewBox="0 0 42 42" role="img" aria-label="Open inquiries by stage">
+              <g transform="rotate(-90 21 21)">
+                {(() => {
+                  let offset = 0;
+                  const C = 100; // circumference of the r=15.915 circle
+                  return funnel
+                    .filter((f) => f.count > 0)
+                    .map((f) => {
+                      const frac = f.count / stats.inquiries.open;
+                      const seg = (
+                        <circle
+                          class="donut-seg"
+                          data-status={f.status}
+                          cx="21" cy="21" r="15.915"
+                          stroke-dasharray={`${frac * C} ${C - frac * C}`}
+                          stroke-dashoffset={`${(C - offset) % C}`}
+                        />
+                      );
+                      offset += frac * C;
+                      return seg;
+                    });
+                })()}
+              </g>
+              <text x="21" y="20.5" class="donut-num">{stats.inquiries.open}</text>
+              <text x="21" y="25.5" class="donut-cap">open</text>
+            </svg>
+            <ul class="legend">
+              {funnel.filter((f) => f.count > 0).map((f) => (
+                <li><span class="dot" data-status={f.status}></span>{labelForEnum(f.status)} <span class="muted">· {f.count}</span></li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </div>
+
+    <p class="trend muted small">
+      Last 7 days: <strong>{stats.inquiries.last7d}</strong> inquiries · <strong>{stats.listings.last7d}</strong> listings ·
+      Last 30 days: <strong>{stats.inquiries.last30d}</strong> inquiries · <strong>{stats.listings.last30d}</strong> listings
+    </p>
+  </section>
+
+  {/* ── Recent activity ───────────────────────────────────────────────────── */}
+  <section class="grid-2" style="margin-top: var(--sp-6);">
+    <div>
+      <div class="head-line">
+        <h2 class="section-title">Recent listings</h2>
+        <a class="link-btn" href="/admin/listings">View all →</a>
+      </div>
+      {stats.recentListings.length === 0 ? (
+        <div class="panel"><div class="empty-state"><span class="ico"><svg class="ic"><use href="#i-truck" /></svg></span><p>No listings yet.</p></div></div>
+      ) : (
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Title</th><th>Price</th><th>Sale</th><th>Visibility</th></tr></thead>
+            <tbody>
+              {stats.recentListings.map((l) => (
+                <tr>
+                  <td>
+                    <a href={`/admin/listings/${l.id}`}>{l.title}</a>
+                    <div class="muted small">{labelForEnum(l.category)}</div>
+                  </td>
+                  <td class="small">{formatPrice(l.price, l.priceOnApplication)}</td>
+                  <td><span class="badge badge-sale dot" data-sale={l.status}>{labelForEnum(l.status)}</span></td>
+                  <td>{l.isPublished ? <span class="badge badge-success">Published</span> : <span class="badge badge-warning">Draft</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+
+    <div>
+      <div class="head-line">
+        <h2 class="section-title">Recent inquiries</h2>
+        <a class="link-btn" href="/admin/inquiries">Open the inbox →</a>
+      </div>
+      {stats.recentInquiries.length === 0 ? (
+        <div class="panel"><div class="empty-state"><span class="ico"><svg class="ic"><use href="#i-inbox" /></svg></span><p>No inquiries yet. They’ll appear here as they arrive.</p></div></div>
+      ) : (
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Name</th><th>Unit</th><th>Status</th><th>Received</th></tr></thead>
+            <tbody>
+              {stats.recentInquiries.map((r) => (
+                <tr>
+                  <td>
+                    <a href={`/admin/inquiries/${r.id}`}>{r.name}</a>
+                    <div class="muted small">{labelForEnum(r.source)}</div>
+                  </td>
+                  <td class="small">{r.listingTitle ?? '—'}</td>
+                  <td><span class="badge badge-status dot" data-status={r.status}>{labelForEnum(r.status)}</span></td>
+                  <td class="muted small">{formatDateTime(r.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </section>
+</AdminLayout>
+
+<style>
+  /* KPI cards — extends the shared .stat with a caption line. */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--sp-3);
+  }
+  .stat {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    text-decoration: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: var(--sp-4);
+    overflow: hidden;
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .stat::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--accent);
+    opacity: 0.55;
+  }
+  .stat:hover { background: var(--surface-2); border-color: var(--border-strong); }
+  .stat-num {
+    font-family: var(--font-display);
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+  }
+  .stat-label { font-size: 0.85rem; color: var(--text); font-weight: 600; }
+  .stat-sub { font-size: 0.74rem; color: var(--faint); }
+
+  /* Two-up layout used by inventory + recent-activity sections. */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-4);
+    align-items: start;
+  }
+
+  .head-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-3);
+  }
+
+  /* Proportion bars (inventory). Color via [data-sale] / a flat accent. */
+  .bars { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .bar-row {
+    display: grid;
+    grid-template-columns: 7.5rem 1fr 2rem;
+    align-items: center;
+    gap: var(--sp-3);
+    text-decoration: none;
+    padding: 0.15rem 0;
+  }
+  .bar-label { font-size: 0.82rem; color: var(--muted); }
+  .bar-row:hover .bar-label { color: var(--text); }
+  .bar-track {
+    height: 10px;
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: var(--r-pill);
+    background: var(--border-strong);
+    min-width: 2px;
+    transition: width 0.2s ease;
+  }
+  .bar-fill.cat { background: var(--accent); }
+  .bar-fill[data-sale='available'] { background: var(--success-fill); }
+  .bar-fill[data-sale='reserved'] { background: var(--warning-fill); }
+  .bar-fill[data-sale='sold'] { background: var(--danger-fill); }
+  .bar-fill[data-sale='incoming'] { background: var(--info-fill); }
+  .bar-val { font-size: 0.85rem; font-weight: 600; color: var(--text); text-align: right; }
+
+  .flag {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin: var(--sp-4) 0 0;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+
+  /* Pipeline: funnel panel + donut panel. */
+  .pipeline {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: var(--sp-4);
+    align-items: start;
+  }
+  .funnel-row {
+    display: grid;
+    grid-template-columns: 6.5rem 1fr 2rem;
+    align-items: center;
+    gap: var(--sp-3);
+    text-decoration: none;
+    padding: 0.2rem 0;
+  }
+  .funnel-label { font-size: 0.82rem; color: var(--muted); }
+  .funnel-row:hover .funnel-label { color: var(--text); }
+  .funnel-track { height: 12px; border-radius: var(--r-pill); background: var(--surface-2); overflow: hidden; }
+  .funnel-fill {
+    display: block;
+    height: 100%;
+    border-radius: var(--r-pill);
+    min-width: 2px;
+    background: var(--_c, var(--border-strong));
+    transition: width 0.2s ease;
+  }
+  .funnel-val { font-size: 0.85rem; font-weight: 600; color: var(--text); text-align: right; }
+  .funnel-row[data-status='new'] { --_c: var(--st-new); }
+  .funnel-row[data-status='read'] { --_c: var(--st-read); }
+  .funnel-row[data-status='contacted'] { --_c: var(--st-contacted); }
+  .funnel-row[data-status='negotiating'] { --_c: var(--st-negotiating); }
+
+  .outcomes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-2);
+    margin-top: var(--sp-4);
+    padding-top: var(--sp-4);
+    border-top: 1px solid var(--border);
+  }
+  .outcome {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-decoration: none;
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+  }
+  .outcome[data-status='won'] { border-color: color-mix(in srgb, var(--st-won) 40%, var(--border)); }
+  .outcome[data-status='lost'] { border-color: color-mix(in srgb, var(--st-lost) 40%, var(--border)); }
+  .o-num { font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; color: var(--text); line-height: 1; }
+  .outcome[data-status='won'] .o-num { color: var(--st-won); }
+  .outcome[data-status='lost'] .o-num { color: var(--st-lost); }
+  .o-label { font-size: 0.72rem; color: var(--faint); }
+
+  /* Donut (open inquiries by stage). r=15.915 → circumference ≈ 100. */
+  .donut-panel { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); }
+  .donut-panel .section-title { align-self: flex-start; }
+  .donut { width: 130px; height: 130px; }
+  .donut-seg { fill: none; stroke-width: 4; }
+  .donut-seg[data-status='new'] { stroke: var(--st-new); }
+  .donut-seg[data-status='read'] { stroke: var(--st-read); }
+  .donut-seg[data-status='contacted'] { stroke: var(--st-contacted); }
+  .donut-seg[data-status='negotiating'] { stroke: var(--st-negotiating); }
+  .donut-num { fill: var(--text); stroke: none; font-size: 6px; font-weight: 700; text-anchor: middle; font-family: var(--font-display); }
+  .donut-cap { fill: var(--faint); stroke: none; font-size: 2.4px; text-anchor: middle; text-transform: uppercase; letter-spacing: 0.3px; }
+  .legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; align-self: stretch; }
+  .legend li { display: flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; color: var(--text); }
+  .legend .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--border-strong); }
+  .legend .dot[data-status='new'] { background: var(--st-new); }
+  .legend .dot[data-status='read'] { background: var(--st-read); }
+  .legend .dot[data-status='contacted'] { background: var(--st-contacted); }
+  .legend .dot[data-status='negotiating'] { background: var(--st-negotiating); }
+
+  .trend { margin: var(--sp-4) 0 0; }
+  .trend strong { color: var(--text); }
+
+  @media (max-width: 760px) {
+    /* minmax(0,1fr) (not the 1fr default of minmax(auto,1fr)) so a min-width
+       table inside .table-wrap clips/scrolls instead of stretching the track. */
+    .grid-2, .pipeline { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>

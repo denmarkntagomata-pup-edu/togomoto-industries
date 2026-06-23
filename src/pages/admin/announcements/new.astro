@@ -1,0 +1,15 @@
+---
+// Create a new announcement (spec §5.8/§8, PLAN P2-5). Multipart form (carries
+// the optional cover image). On success the form redirects to
+// /admin/announcements. SSR; Access-gated.
+export const prerender = false;
+
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AnnouncementForm from '../../../components/admin/AnnouncementForm.astro';
+---
+
+<AdminLayout title="New announcement" active="announcements">
+  <p class="crumb"><a href="/admin/announcements"><svg class="ic"><use href="#i-arrow-left" /></svg> Announcements</a></p>
+  <div class="page-head"><div class="title-wrap"><h1>New announcement</h1></div></div>
+  <AnnouncementForm />
+</AdminLayout>
