@@ -44,18 +44,6 @@ const services = [
     icon: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
   },
   {
-    label: 'Auction request',
-    desc: 'Source a specific unit straight from Japan auctions.',
-    href: '/services/auction-request',
-    icon: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
-  },
-  {
-    label: 'Vehicle shipping',
-    desc: 'Point-to-point shipping, clearance and registration.',
-    href: '/services/vehicle-shipping',
-    icon: '<circle cx="12" cy="5" r="2.5"/><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/>',
-  },
-  {
     label: 'Spare parts',
     desc: 'Genuine and surplus parts for your fleet.',
     href: '/spare-parts',
@@ -76,7 +64,7 @@ const reasons = [
 
 <BaseLayout
   title="Togomoto Industries"
-  description="Direct importer of Japan-surplus used cars, trucks and heavy equipment in the Philippines — auction sourcing, vehicle shipping and spare parts. Browse our latest arrivals."
+  description="Direct importer of Japan-surplus used cars, trucks and heavy equipment in the Philippines — spare parts. Browse our latest arrivals."
 >
   <script type="application/ld+json" slot="head" is:inline set:html={JSON.stringify(orgJsonLd)} />
 
@@ -113,7 +101,7 @@ const reasons = [
         <h2>Get to know Togomoto</h2>
         <p>
           We're a Japan-surplus dealership that manages the whole chain, from
-          sourcing and shipping to customs clearance and LTO registration. Learn
+          import to customs clearance and LTO registration. Learn
           how we work and why fleet owners trust us.
         </p>
       </div>

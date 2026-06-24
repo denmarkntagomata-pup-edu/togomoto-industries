@@ -18,8 +18,6 @@ const STATIC_PATHS = [
   `/products/${SLUG_BY_CATEGORY.used_car}`,
   `/products/${SLUG_BY_CATEGORY.used_truck}`,
   `/products/${SLUG_BY_CATEGORY.used_heavy_equipment}`,
-  '/services/auction-request',
-  '/services/vehicle-shipping',
   '/spare-parts',
   '/announcements',
   '/about',
