@@ -21,8 +21,6 @@ export type FuelType = (typeof FUEL_TYPES)[number];
 export const INQUIRY_SOURCES = [
   'home',
   'product_detail',
-  'auction_request',
-  'vehicle_shipping',
   'contact',
 ] as const;
 export type InquirySource = (typeof INQUIRY_SOURCES)[number];

@@ -20,7 +20,7 @@ export function organizationLd(origin: string = SITE_URL) {
     logo: origin + '/logo.svg',
     image: origin + '/og.svg',
     description:
-      'Direct importer of Japan-surplus used cars, trucks and heavy equipment in the Philippines — with auction sourcing, vehicle shipping and spare parts.',
+      'Direct importer of Japan-surplus used cars, trucks and heavy equipment in the Philippines — with spare parts.',
     telephone: '+1-555-010-1234',
     email: 'hello@togomoto-industries.example.com',
     address: {
